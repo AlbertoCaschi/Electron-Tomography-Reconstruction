@@ -1,12 +1,11 @@
 import math
-
 import pytorch_lightning as pl
 import torch
 import tqdm
 import yaml
 from torch import nn
 
-from .fourier import apply_fourier_mask_to_tomo
+from .fourier import apply_fourier_mask_to_patch
 from .masked_loss import masked_loss
 from .missing_wedge import get_missing_wedge_mask
 from .normalization import get_avg_model_input_mean_and_std_from_dataloader
@@ -14,47 +13,40 @@ from .normalization import get_avg_model_input_mean_and_std_from_dataloader
 
 class LitUnet2D(pl.LightningModule):
     """
-    PyTrochLightning 'wrapper' of a 2D U-Net. This class implements steps for model fitting, validation and logging. This class is the heart of the 'ddw fit-model' command.
+    PyTorchLightning wrapper.
     """
 
     def __init__(
         self,
         unet_params,
         adam_params,
-        subtomo_dir,
-        update_subtomo_missing_wedges_every_n_epochs=10,
+        patch_dir,
+        update_patch_missing_wedges_every_n_epochs=10,
     ):
         super().__init__()
         self.unet_params = unet_params
         self.adam_params = adam_params
-        self.subtomo_dir = subtomo_dir
-        self.update_subtomo_missing_wedges_every_n_epochs = (
-            update_subtomo_missing_wedges_every_n_epochs
-        )
-        self.unet = Unet2D(**self.unet_params)
+        self.patch_dir = patch_dir
+        self.update_patch_missing_wedges_every_n_epochs = update_patch_missing_wedges_every_n_epochs
+        
+        # Instantiate the new ResNet Encoder-Decoder instead of the U-Net
+        self.unet = ResNetEncoderDecoder2D(**self.unet_params)
         self.save_hyperparameters()
 
     def forward(self, x):
-        return self.unet(x.unsqueeze(1)).squeeze(
-            1
-        )  # unsqueeze to add channel dimension, squeeze to remove it
+        return self.unet(x.unsqueeze(1)).squeeze(1)
 
     def training_step(self, batch, batch_idx):
         model_output = self(batch["model_input"])
+        
         loss = masked_loss(
             model_output=model_output,
             target=batch["model_target"],
             rot_mw_mask=batch["rot_mw_mask"],
             mw_mask=batch["mw_mask"],
+            mw_weight=100.0  # Adjusted missing wedge weight
         )
-        self.log(
-            "fitting_loss",
-            loss,
-            on_step=False,
-            on_epoch=True,
-            prog_bar=True,
-            logger=True,
-        )
+        self.log("fitting_loss", loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -64,109 +56,76 @@ class LitUnet2D(pl.LightningModule):
             target=batch["model_target"],
             rot_mw_mask=batch["rot_mw_mask"],
             mw_mask=batch["mw_mask"],
+            mw_weight=100.0
         )
-        self.log(
-            "val_loss", loss, on_step=False, on_epoch=True, prog_bar=True, logger=True
-        )
+        self.log("val_loss", loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
 
     def on_train_start(self) -> None:
         if self.current_epoch == 0:
             self.update_normalization()
 
     def on_train_epoch_end(self) -> None:
-        if (
-            self.current_epoch + 1
-        ) % self.update_subtomo_missing_wedges_every_n_epochs == 0:  # +1 because the epoch indexing starts at 0
-            self.update_subtomo_missing_wedges()
+        if (self.current_epoch + 1) % self.update_patch_missing_wedges_every_n_epochs == 0:
+            self.update_patch_missing_wedges()
             self.update_normalization()
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), **self.adam_params)
-        return [optimizer] 
+        return [optimizer]
 
-    def update_subtomo_missing_wedges(self):
-        """
-        Update the missing wedges of model input subtomos.
-        """
-        # we don't want to rotate the subtomos when updating them, so we create new dataloader objects with rotate_subtomos=False
+    def update_patch_missing_wedges(self):
         datasets = []
         train_loader = self.trainer.train_dataloader.loaders
         train_set = train_loader.dataset
-        train_set.rotate_subtomos = False
+        train_set.rotate_patches = False 
         datasets.append(train_set)
-        # val_dataloaders may be None
+        
         if self.trainer.val_dataloaders is not None:
             val_loader = self.trainer.val_dataloaders[0]
             val_set = val_loader.dataset
-            val_set.rotate_subtomos = False
+            val_set.rotate_patches = False
             datasets.append(val_set)
+            
         dataset = torch.utils.data.ConcatDataset(datasets)
         loader = torch.utils.data.DataLoader(
-            dataset,
-            batch_size=train_loader.batch_size,
-            num_workers=train_loader.num_workers,
+            dataset, batch_size=train_loader.batch_size, num_workers=train_loader.num_workers,
         )
-        # subtomo size has to be divisible by 2**num_downsample_layers due to U-Net architecture -> ensure this by padding
-        subtomo_dim = dataset[0]["model_input"].shape[-1]
+        
+        patch_dim = dataset[0]["model_input"].shape[-1]
         factor = 2 ** self.unet_params["num_downsample_layers"]
-        padding = factor * math.ceil(subtomo_dim / factor) - subtomo_dim
-        # also make larger missing wedge mask that is compatible with the padded subtomos
-        mw_mask = get_missing_wedge_mask(grid_size=2*[subtomo_dim + padding], mw_angle=train_set.mw_angle)
+        padding = factor * math.ceil(patch_dim / factor) - patch_dim
+        
+        mw_mask = get_missing_wedge_mask(grid_size=2*[patch_dim + padding], mw_angle=train_set.mw_angle)
+        
         with torch.no_grad():
-            for batch in tqdm.tqdm(loader, desc="Updating subtomo missing wedges"):
-                assert batch["rot_angle"].float().norm() == 0
-                subtomo_batch = batch["model_input"].to(self.device)
+            for batch in tqdm.tqdm(loader, desc="Updating patch missing wedges"):
+                patch_batch = batch["model_input"].to(self.device)
+                patch_batch = torch.nn.functional.pad(patch_batch, pad=(0, padding, 0, padding), mode="constant", value=0)
+                mw_mask_batch = mw_mask.repeat((*patch_batch.shape[:-2], 1, 1)).to(patch_batch.device)
                 
-                # Changed padding to 2D (4 arguments instead of 6)
-                subtomo_batch = torch.nn.functional.pad(
-                    subtomo_batch,
-                    pad=(0, padding, 0, padding),
-                    mode="constant",
-                    value=0,
-                )
+                patch_batch_ref = self.forward(patch_batch)
                 
-                # Adjusted repeat for 2D shape
-                mw_mask_batch = mw_mask.repeat((*subtomo_batch.shape[:-2], 1, 1)).to(subtomo_batch.device)
+                patch_batch = apply_fourier_mask_to_patch(patch_batch, mw_mask_batch) + \
+                              apply_fourier_mask_to_patch(patch_batch_ref, 1 - mw_mask_batch)
+                              
+                patch_batch = patch_batch[..., :patch_dim, :patch_dim]
                 
-                # forward pass
-                subtomo_batch_ref = self.forward(subtomo_batch)
-                # update missing wedges    
-                subtomo_batch = apply_fourier_mask_to_tomo(
-                    subtomo_batch, mw_mask_batch
-                ) + apply_fourier_mask_to_tomo(subtomo_batch_ref, 1 - mw_mask_batch)
-                
-                # remove 2D padding
-                subtomo_batch = subtomo_batch[
-                    ..., :subtomo_dim, :subtomo_dim
-                ]
-                for subtomo, file in zip(subtomo_batch, batch["subtomo0_file"]):
-                    torch.save(subtomo.cpu().clone(), file)
-        train_set.rotate_subtomos = True
+                for patch, file in zip(patch_batch, batch["patch0_file"]):
+                    torch.save(patch.cpu().clone(), file)
+                    
+        train_set.rotate_patches = True
         if self.trainer.val_dataloaders is not None:
-            val_set.rotate_subtomos = True
+            val_set.rotate_patches = True
 
     def update_normalization(self):
-        """
-        Updates the average model input mean and standard deviation used to normalize the sub-tomograms.
-        """
-        loc, scale = get_avg_model_input_mean_and_std_from_dataloader(
-            dataloader=self.trainer.train_dataloader, verbose=True
-        )
-
-        # update normalization in unet
+        loc, scale = get_avg_model_input_mean_and_std_from_dataloader(self.trainer.train_dataloader, verbose=True)
         self.unet.normalization_loc = loc
         self.unet.normalization_scale = scale
-        # update normalization in hparams
         self.unet_params["normalization_loc"] = loc
         self.unet_params["normalization_scale"] = scale
         self.update_hparam("unet_params", self.unet_params)
-        self.log("normalization/loc", loc)
-        self.log("normalization/scale", scale)
 
     def update_hparam(self, hparam, value):
-        """
-        Update a hyperparameter in the hparams.yaml file.
-        """
         logger = self.trainer.logger
         logdir = f"{logger.save_dir}/{logger.name}/version_{logger.version}"
         hparams_file = f"{logdir}/hparams.yaml"
@@ -176,42 +135,62 @@ class LitUnet2D(pl.LightningModule):
             yaml.dump(hparams, f)
 
 
-class Unet2D(torch.nn.Module):
-    """
-    PyTorch implementation of a 2D U-Net.
-    """
+
+# RESNET ENCODER-DECODER ARCHITECTURE
+
+
+class ResNetEncoderDecoder2D(torch.nn.Module):
 
     def __init__(
-        self,
-        in_chans: int = 1,
-        out_chans: int = 1,
-        chans: int = 32,
-        num_downsample_layers: int = 3,
-        drop_prob: float = 0.0,
-        residual: bool = True,
-        normalization_loc: float = 0.0,
-        normalization_scale: float = 1.0,
+        self, in_chans=1, out_chans=1, chans=64, num_downsample_layers=3, drop_prob=0.0, 
+        residual=True, normalization_loc=0.0, normalization_scale=1.0
     ):
         super().__init__()
-
-        self.in_chans = in_chans
-        self.out_chans = out_chans
-        self.chans = chans
-        self.num_downsample_layers = num_downsample_layers
-        self.drop_prob = drop_prob
         self.residual = residual
+        
         self.normalization_loc = normalization_loc
         self.normalization_scale = normalization_scale
-        self.__init_layers__()
+
+        # Initial Projection
+        self.initial_conv = nn.Conv2d(in_chans, chans, kernel_size=3, padding=1)
+
+        # Encoder (Downsampling + ResBlocks)
+        self.encoders = nn.ModuleList()
+        self.downsamplers = nn.ModuleList()
+        ch = chans
+        for _ in range(num_downsample_layers):
+            self.encoders.append(ResBlock2D(ch, ch, drop_prob))
+            self.downsamplers.append(SpatialDownSampling(ch))
+            ch_next = ch * 2
+            self.encoders.append(ResBlock2D(ch, ch_next, drop_prob))
+            ch = ch_next
+
+        # Bottleneck (Deepest latent space)
+        self.bottleneck = nn.Sequential(
+            ResBlock2D(ch, ch, drop_prob),
+            ResBlock2D(ch, ch, drop_prob)
+        )
+
+        # Decoder (Upsampling)
+        self.upsamplers = nn.ModuleList()
+        self.decoders = nn.ModuleList()
+        for _ in range(num_downsample_layers):
+            ch_next = ch // 2
+            self.upsamplers.append(SpatialUpSampling(ch, ch_next))
+            self.decoders.append(ResBlock2D(ch_next, ch_next, drop_prob))
+            ch = ch_next
+
+        # Final Output Projection
+        self.final_conv = nn.Conv2d(ch, out_chans, kernel_size=1)
 
     @property
     def normalization_loc(self):
         return self._normalization_loc
 
     @normalization_loc.setter
-    def normalization_loc(self, normalization_loc):
-        self._normalization_loc = nn.parameter.Parameter(
-            torch.tensor(normalization_loc), requires_grad=False
+    def normalization_loc(self, loc):
+        self._normalization_loc = nn.Parameter(
+            torch.tensor(loc, dtype=torch.float32), requires_grad=False
         )
 
     @property
@@ -219,134 +198,69 @@ class Unet2D(torch.nn.Module):
         return self._normalization_scale
 
     @normalization_scale.setter
-    def normalization_scale(self, normalization_scale):
-        self._normalization_scale = nn.parameter.Parameter(
-            torch.tensor(normalization_scale), requires_grad=False
+    def normalization_scale(self, scale):
+        self._normalization_scale = nn.Parameter(
+            torch.tensor(scale, dtype=torch.float32), requires_grad=False
         )
 
-    def __init_layers__(self):
-        self.down_blocks = nn.ModuleList(
-            [DownConvBlock(self.in_chans, self.chans, self.drop_prob)]
-        )
-        self.down_samplers = nn.ModuleList([SpatialDownSampling(self.chans)])
-
-        ch = self.chans
-        for _ in range(self.num_downsample_layers - 1):
-            self.down_blocks.append(DownConvBlock(ch, ch * 2, self.drop_prob))
-            self.down_samplers.append(SpatialDownSampling(ch * 2))
-            ch *= 2
-
-        self.bottleneck = nn.Sequential(
-            nn.Conv2d(ch, ch * 2, kernel_size=(3, 3), padding=1),
-            nn.LeakyReLU(negative_slope=0.05, inplace=True),
-            nn.Conv2d(ch * 2, ch, kernel_size=(3, 3), padding=1),
-        )
-
-        self.up_blocks = nn.ModuleList()
-        self.upsamplers = nn.ModuleList([SpatialUpSampling(in_chans=ch, out_chans=ch)])
-
-        for _ in range(self.num_downsample_layers - 1):
-            self.up_blocks.append(UpConvBlock(2 * ch, ch, self.drop_prob))
-            self.upsamplers.append(SpatialUpSampling(in_chans=ch, out_chans=ch // 2))
-            ch //= 2
-        self.up_blocks.append(UpConvBlock(2 * ch, ch, self.drop_prob))
-
-        self.final_conv = nn.Conv2d(
-            ch, self.out_chans, kernel_size=(1, 1), stride=(1, 1)
-        )
-
-    def normalize(self, volume: torch.Tensor) -> torch.Tensor:
+    def normalize(self, volume):
         return (volume - self.normalization_loc) / (self.normalization_scale + 1e-6)
 
-    def denormalize(self, volume: torch.Tensor) -> torch.Tensor:
+    def denormalize(self, volume):
         return volume * (self.normalization_scale + 1e-6) + self.normalization_loc
 
-    def forward(self, volume: torch.Tensor) -> torch.Tensor:
-        volume = self.normalize(volume)
+    def forward(self, volume):
+        x = self.normalize(volume)
+        out = self.initial_conv(x)
 
-        stack = []
-        output = volume
+        # Encode
+        for enc1, down, enc2 in zip(self.encoders[0::2], self.downsamplers, self.encoders[1::2]):
+            out = enc1(out)
+            out = down(out)
+            out = enc2(out)
 
-        # apply down-sampling layers
-        for block, downsampler in zip(self.down_blocks, self.down_samplers):
-            output = block(output)
-            stack.append(output)  # save intermediate outputs for skip connections
-            output = downsampler(output)
+        # Bottleneck
+        out = self.bottleneck(out)
 
-        output = self.bottleneck(output)
+        # Decode
+        for up, dec in zip(self.upsamplers, self.decoders):
+            out = up(out)
+            out = dec(out)
 
-        # apply up-sampling layers
-        for upsampler, block in zip(self.upsamplers, self.up_blocks):
-            output = upsampler(output, cat=stack.pop())
-            output = block(output)
+        out = self.final_conv(out)
 
-        output = self.final_conv(output)
         if self.residual:
-            output = output + volume
+            out = out + volume
 
-        output = self.denormalize(output)
-        return output
+        return self.denormalize(out)
 
 
-class DownConvBlock(nn.Module):
+class ResBlock2D(nn.Module):
+    """ Standard Residual Block with InstanceNorm """
     def __init__(self, in_chans: int, out_chans: int, drop_prob: float):
         super().__init__()
-
-        self.in_chans = in_chans
-        self.out_chans = out_chans
-        self.drop_prob = drop_prob
-
+        self.match_dim = nn.Conv2d(in_chans, out_chans, kernel_size=1) if in_chans != out_chans else nn.Identity()
+        
         self.layers = nn.Sequential(
-            nn.Conv2d(in_chans, out_chans, kernel_size=(3, 3), padding=1),
+            nn.Conv2d(in_chans, out_chans, kernel_size=3, padding=1, padding_mode='reflect'),
             nn.InstanceNorm2d(out_chans),
             nn.Dropout2d(drop_prob),
             nn.LeakyReLU(negative_slope=0.05, inplace=True),
-            nn.Conv2d(out_chans, out_chans, kernel_size=(3, 3), padding=1),
-            nn.InstanceNorm2d(out_chans),
-            nn.Dropout2d(drop_prob),
-            nn.LeakyReLU(negative_slope=0.05, inplace=True),
-            nn.Conv2d(out_chans, out_chans, kernel_size=(3, 3), padding=1),
-            nn.InstanceNorm2d(out_chans),
-            nn.Dropout2d(drop_prob),
-            nn.LeakyReLU(negative_slope=0.05, inplace=True),
+            nn.Conv2d(out_chans, out_chans, kernel_size=3, padding=1, padding_mode='reflect'),
+            nn.InstanceNorm2d(out_chans)
         )
+        self.activation = nn.LeakyReLU(negative_slope=0.05, inplace=True)
 
-    def forward(self, volume: torch.Tensor) -> torch.Tensor:
-        return self.layers(volume)
-
-
-class UpConvBlock(nn.Module):
-    def __init__(self, in_chans: int, out_chans: int, drop_prob: float):
-        super().__init__()
-
-        self.in_chans = in_chans
-        self.out_chans = out_chans
-        self.drop_prob = drop_prob
-
-        self.layers = nn.Sequential(
-            nn.Conv2d(in_chans, in_chans // 2, kernel_size=(3, 3), padding=1),
-            nn.InstanceNorm2d(in_chans // 2),
-            nn.Dropout2d(drop_prob),
-            nn.LeakyReLU(negative_slope=0.05, inplace=True),
-            nn.Conv2d(in_chans // 2, in_chans // 2, kernel_size=(3, 3), padding=1),
-            nn.InstanceNorm2d(in_chans // 2),
-            nn.Dropout2d(drop_prob),
-            nn.LeakyReLU(negative_slope=0.05, inplace=True),
-            nn.Conv2d(in_chans // 2, out_chans, kernel_size=(3, 3), padding=1),
-            nn.InstanceNorm2d(out_chans),
-            nn.Dropout2d(drop_prob),
-            nn.LeakyReLU(negative_slope=0.05, inplace=True),
-        )
-
-    def forward(self, volume: torch.Tensor) -> torch.Tensor:
-        return self.layers(volume)
+    def forward(self, x):
+        res = self.match_dim(x)
+        return self.activation(self.layers(x) + res)
 
 
 class SpatialDownSampling(nn.Module):
     def __init__(self, chans: int) -> None:
         super().__init__()
         self.layers = nn.Sequential(
-            nn.Conv2d(chans, chans, kernel_size=(3, 3), stride=(2, 2), padding=1),
+            nn.Conv2d(chans, chans, kernel_size=3, stride=2, padding=1),
             nn.LeakyReLU(negative_slope=0.05, inplace=True),
         )
 
@@ -355,20 +269,13 @@ class SpatialDownSampling(nn.Module):
 
 
 class SpatialUpSampling(nn.Module):
-    def __init__(self, in_chans: int, out_chans: int, drop_prob=0.0):
+    def __init__(self, in_chans: int, out_chans: int):
         super().__init__()
+        # No more 'cat' logic! Pure upsampling.
         self.tconv = nn.ConvTranspose2d(
-            in_chans,
-            out_chans,
-            kernel_size=(3, 3),
-            stride=(2, 2),
-            padding=1,
-            output_padding=1,
+            in_chans, out_chans, kernel_size=3, stride=2, padding=1, output_padding=1
         )
         self.activation = nn.LeakyReLU(negative_slope=0.05, inplace=True)
 
-    def forward(self, volume: torch.Tensor, cat: torch.Tensor) -> torch.Tensor:
-        output = self.tconv(volume)
-        output = torch.cat([output, cat], dim=1)
-        output = self.activation(output)
-        return output
+    def forward(self, volume: torch.Tensor) -> torch.Tensor:
+        return self.activation(self.tconv(volume))
