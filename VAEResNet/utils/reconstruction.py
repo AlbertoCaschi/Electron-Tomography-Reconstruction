@@ -26,7 +26,7 @@ def reconstruct_fbp_single(sinogram: np.ndarray, angles_deg: np.ndarray, filter_
         sinogram = sinogram.T
         
     with warnings.catch_warnings():
-        warnings.simplefilter("ignore") # Suppress skimage padding warnings
+        warnings.simplefilter("ignore")
         reconstruction = iradon(sinogram, theta=angles_deg, filter_name=filter_name)
         
     return reconstruction

@@ -2,9 +2,8 @@ import mrcfile
 import matplotlib.pyplot as plt
 import numpy as np
 
-DATA_FOLDER = "/Users/albertocaschi/Desktop/GenAI project/datasets"
-OBJECT = "2_squares"
-ANGLES = [-90, 1, 90]
+DATA_FOLDER = "./dataset/synthetic_raw"
+SAMPLE_NUM = "0000"
 
 def check_mrc_dimensions_and_plot(path):
     try:
@@ -48,5 +47,52 @@ def check_mrc_dimensions_and_plot(path):
     except Exception as e:
         print(f"Error reading file: {e}")
 
+check_mrc_dimensions_and_plot(f"{DATA_FOLDER}/synthetic_sino_{SAMPLE_NUM}.mrc")
 
-check_mrc_dimensions_and_plot(f"{DATA_FOLDER}/{OBJECT}/sinograms/sinogram_{ANGLES[0]}_{ANGLES[1]}_{ANGLES[2]}.mrc")
+from skimage.transform import iradon
+
+def reconstruct_and_plot_fbp(path, angles_config=[-90, 1, 90]):
+    try:
+        with mrcfile.open(path, permissive=True) as mrc:
+            data = mrc.data
+
+            # Extract the 2D sinogram (same logic as above)
+            if data.ndim == 2:
+                sino = data
+            elif data.ndim == 3:
+                sino = np.squeeze(data)
+                if sino.ndim == 3:
+                    sino = sino[0]
+            else:
+                raise ValueError(f"Unsupported number of dimensions: {data.ndim}")
+
+            # 1. Generate the array of projection angles based on [start, step, end]
+            # Adding the step to the end ensures the stop value is included
+            theta = np.arange(angles_config[0], angles_config[2] + angles_config[1], angles_config[1])
+
+            # 2. Scikit-image 'iradon' expects the input shape to be (detector_pixels, angles).
+            # MRC files often store sinograms as (angles, detector_pixels). We check and transpose if needed.
+            if sino.shape[0] == len(theta):
+                sino = sino.T
+            elif sino.shape[1] != len(theta):
+                print(f"Warning: Sinogram angle dimension does not match calculated theta length ({len(theta)}).")
+
+            print("Performing Filtered Back Projection (FBP)...")
+            
+            # 3. Perform FBP using a standard Ram-Lak ('ramp') filter
+            reconstruction = iradon(sino, theta=theta, filter_name='ramp')
+
+            # 4. Plot the reconstructed 2D Image
+            plt.figure(figsize=(8, 6))
+            plt.imshow(reconstruction, cmap="gray")
+            plt.title("FBP Reconstructed 2D Image")
+            plt.xlabel("X")
+            plt.ylabel("Y")
+            plt.colorbar(label="Density / Attenuation")
+            plt.tight_layout()
+            plt.show()
+
+    except Exception as e:
+        print(f"Error during FBP reconstruction: {e}")
+
+reconstruct_and_plot_fbp(f"{DATA_FOLDER}/synthetic_sino_{SAMPLE_NUM}.mrc")

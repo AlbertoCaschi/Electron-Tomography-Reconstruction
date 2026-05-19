@@ -13,14 +13,14 @@ def create_phantom(size=362):
     """
     image = np.zeros((size, size), dtype=np.float32)
     
-    # 1. Strictly limit to 1 or 2 objects per image
+    # limit to 1 or 2 objects per image
     num_objects = np.random.randint(1, 3) 
     
     for _ in range(num_objects):
-        # Randomly choose the type of shape to draw
+        # choose randomly the type of shape to draw
         shape_type = np.random.choice(['rotated_rect', 'blob'])
         
-        # Random center, keeping it away from the absolute edges
+        # random center of the object in the image
         center_r = np.random.randint(size//4, size*3//4)
         center_c = np.random.randint(size//4, size*3//4)
         intensity = np.random.uniform(0.4, 1.0)

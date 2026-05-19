@@ -1,6 +1,7 @@
 import numpy as np
 import os
 import mrcfile
+from pathlib import Path
 from train import train_model
 
 # Main config dictionary
@@ -17,12 +18,12 @@ CONFIG = {
     # experimental setups
     "acquisition_configs": [
         {'range': (-90, 90), 'step': 1},
-        #{'range': (-50, 50), 'step': 5},
-        #{'range': (-50, 50), 'step': 10},
-        #{'range': (-50, 50), 'step': 20},
-        #{'range': (-40, 40), 'step': 5},
-        #{'range': (-40, 40), 'step': 10},
-        #{'range': (-40, 40), 'step': 20}
+        {'range': (-50, 50), 'step': 5},
+        {'range': (-50, 50), 'step': 10},
+        {'range': (-50, 50), 'step': 20},
+        {'range': (-40, 40), 'step': 5},
+        {'range': (-40, 40), 'step': 10},
+        {'range': (-40, 40), 'step': 20}
     ],
 
     # Model Architecture
@@ -56,11 +57,8 @@ if __name__ == "__main__":
 
     print("Loading Ground Truth Sinograms from MRC files...")
 
-    mrc_file_paths = [
-        "/Users/albertocaschi/Desktop/GenAI project/datasets/2_squares/sinograms/sinogram_-90_1_90.mrc",
-        "/Users/albertocaschi/Desktop/GenAI project/datasets/catalyst/sinograms/sinogram_-90_1_90.mrc",
-        "/Users/albertocaschi/Desktop/GenAI project/datasets/circle/sinograms/sinogram_-90_1_90.mrc"
-    ]
+    data_folder = Path("./dataset/synthetic_raw")
+    mrc_file_paths = list(data_folder.iterdir())
 
     loaded_sinos = []
     
@@ -85,8 +83,8 @@ if __name__ == "__main__":
             loaded_sinos.append(data)
 
     # Training and validation splitting
-    train_sinos = [loaded_sinos[0]]
-    val_sinos = [loaded_sinos[0]]
+    train_sinos = loaded_sinos[:500]
+    val_sinos = loaded_sinos[500:580]
    
 
     print(f"Loaded {len(train_sinos)} training objects and {len(val_sinos)} validation object.")

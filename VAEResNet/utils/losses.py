@@ -33,24 +33,23 @@ class VAELoss(nn.Module):
         """
         batch_size = x.size(0)
 
-        # 1. Reconstruction Loss
         if self.recon_loss_type == 'l1':
-            # reduction='none' allows us to sum over the image dimensions first
             recon_loss = F.l1_loss(recon_x, x, reduction='none')
         elif self.recon_loss_type == 'mse':
             recon_loss = F.mse_loss(recon_x, x, reduction='none')
         else:
             raise ValueError(f"Unknown reconstruction loss type: {self.recon_loss_type}")
             
-        # Sum over channels, height, width, then average over the batch
+        # sum over channels, height, width, then average over the batch
         recon_loss = recon_loss.view(batch_size, -1).sum(dim=1).mean()
 
-        # 2. KL Divergence
+        # KL Divergence
         # Formula: -0.5 * sum(1 + log(sigma^2) - mu^2 - sigma^2)
         kl_loss = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp(), dim=1)
-        kl_loss = kl_loss.mean() # Average over the batch
+        # average over the batch
+        kl_loss = kl_loss.mean()
 
-        # 3. Total Beta-VAE Loss
+        # Total Beta-VAE Loss
         total_loss = recon_loss + (beta * kl_loss)
 
         return total_loss, recon_loss, kl_loss

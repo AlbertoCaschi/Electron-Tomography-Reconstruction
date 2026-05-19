@@ -51,24 +51,24 @@ class TomographyDataset(Dataset):
         actual_idx = idx % len(self.samples)
         obj_idx, cfg_idx = self.samples[actual_idx]
         
-        # 1. Fetch Ground Truth (Target)
+        # Fetch Ground Truth (Target)
         target_sino = np.copy(self.gt_sinos[obj_idx])
         config = self.configs[cfg_idx]
         
-        # 2. Data Augmentation (Crucial for a dataset of only 4 objects)
+        # Data Augmentation
         if self.is_training:
             target_sino = self._apply_augmentations(target_sino)
             
         # Normalize Target to [0, 1] to keep VAE stable
         target_sino = self._normalize(target_sino)
 
-        # 3. Create Masked Input based on config
+        # Create Masked Input based on config
         input_sino = self._apply_missing_wedge_mask(target_sino, config['range'], config['step'])
         
-        # 4. Add Electron Tomography Noise
+        # Add Electron Tomography Noise
         input_sino = self._add_noise(input_sino)
 
-        # 5. Apply any external transforms (if provided)
+        # Apply any external transforms (if provided)
         if self.transform:
             input_sino, target_sino = self.transform(input_sino, target_sino)
 
@@ -86,7 +86,7 @@ class TomographyDataset(Dataset):
         masked_sino = np.zeros_like(sino)
         
         min_angle, max_angle = tilt_range
-        # Create an array of the angles we *did* acquire
+        # Acquired angles
         acquired_angles = np.arange(min_angle, max_angle + 1e-5, step)
         
         for angle in acquired_angles:
@@ -118,7 +118,7 @@ class TomographyDataset(Dataset):
         """
         Physically valid augmentations for tomographic sinograms.
         """
-        # 1. Horizontal Shift (Translation along the detector array)
+        # Horizontal Shift (Translation along the detector array)
         if random.random() > 0.5:
             shift = random.randint(-20, 20)
             # Use roll to shift, simulating the object moving slightly off-center
@@ -130,7 +130,7 @@ class TomographyDataset(Dataset):
             elif shift < 0:
                 sino[:, shift:] = 0
                 
-        # 2. Global Intensity Scaling (Simulating varying beam exposure)
+        # Global Intensity Scaling (Simulating varying beam exposure)
         if random.random() > 0.5:
             scale_factor = random.uniform(0.8, 1.2)
             sino = sino * scale_factor
