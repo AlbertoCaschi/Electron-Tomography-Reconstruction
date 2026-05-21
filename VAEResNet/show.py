@@ -56,7 +56,6 @@ def reconstruct_and_plot_fbp(path, angles_config=[-90, 1, 90]):
         with mrcfile.open(path, permissive=True) as mrc:
             data = mrc.data
 
-            # Extract the 2D sinogram (same logic as above)
             if data.ndim == 2:
                 sino = data
             elif data.ndim == 3:
@@ -66,12 +65,9 @@ def reconstruct_and_plot_fbp(path, angles_config=[-90, 1, 90]):
             else:
                 raise ValueError(f"Unsupported number of dimensions: {data.ndim}")
 
-            # 1. Generate the array of projection angles based on [start, step, end]
-            # Adding the step to the end ensures the stop value is included
+
             theta = np.arange(angles_config[0], angles_config[2] + angles_config[1], angles_config[1])
 
-            # 2. Scikit-image 'iradon' expects the input shape to be (detector_pixels, angles).
-            # MRC files often store sinograms as (angles, detector_pixels). We check and transpose if needed.
             if sino.shape[0] == len(theta):
                 sino = sino.T
             elif sino.shape[1] != len(theta):
@@ -79,10 +75,8 @@ def reconstruct_and_plot_fbp(path, angles_config=[-90, 1, 90]):
 
             print("Performing Filtered Back Projection (FBP)...")
             
-            # 3. Perform FBP using a standard Ram-Lak ('ramp') filter
             reconstruction = iradon(sino, theta=theta, filter_name='ramp')
 
-            # 4. Plot the reconstructed 2D Image
             plt.figure(figsize=(8, 6))
             plt.imshow(reconstruction, cmap="gray")
             plt.title("FBP Reconstructed 2D Image")

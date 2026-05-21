@@ -83,8 +83,8 @@ if __name__ == "__main__":
             loaded_sinos.append(data)
 
     # Training and validation splitting
-    train_sinos = loaded_sinos[:500]
-    val_sinos = loaded_sinos[500:580]
+    train_sinos = loaded_sinos[:1000]
+    val_sinos = loaded_sinos[1000:1200]
    
 
     print(f"Loaded {len(train_sinos)} training objects and {len(val_sinos)} validation object.")

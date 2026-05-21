@@ -31,11 +31,12 @@ def train_model(config, train_sinos, val_sinos):
     os.makedirs(config['log_dir'], exist_ok=True)
 
     # Data Transforms
-    train_transform = PairedCompose([
-        RandomHorizontalShift(max_shift=20, p=0.7),
-        RandomHorizontalFlip(p=0.5),
-        RandomIntensityScale(scale_range=(0.8, 1.2), p=0.5),
-    ])
+    train_transform = PairedCompose([])
+    # train_transform = PairedCompose([
+    #     RandomHorizontalShift(max_shift=20, p=0.7),
+    #     RandomHorizontalFlip(p=0.5),
+    #     RandomIntensityScale(scale_range=(0.8, 1.2), p=0.5),
+    # ])
     
     val_transform = PairedCompose([])
 
@@ -60,7 +61,7 @@ def train_model(config, train_sinos, val_sinos):
 
     # loss
     criterion = VAELoss(recon_loss_type=config['recon_loss_type'])
-    beta_scheduler = BetaScheduler(start_value=0.0, end_value=0.1, warmup_epochs=config['kl_warmup_epochs'])
+    beta_scheduler = BetaScheduler(start_value=0.0, end_value=0.01, warmup_epochs=config['kl_warmup_epochs'])
     
     # optimizer
     optimizer = torch.optim.AdamW(model.parameters(), lr=config['learning_rate'], weight_decay=1e-4)
