@@ -1,9 +1,9 @@
 # --- DATA ---
-./checkpoints/vae_resnet18_baseline/
-./dataset/reconstructions/
-./dataset/synthetic_raw/
-./dataset/test/
-./logs/vae_resnet18_baseline/
+checkpoints/vae_resnet18_baseline/
+dataset/reconstructions/
+dataset/synthetic_raw/
+dataset/test/
+logs/vae_resnet18_baseline/
 
 # --- Virtual environments ---
 venv/
