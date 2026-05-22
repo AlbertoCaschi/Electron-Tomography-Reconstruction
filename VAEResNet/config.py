@@ -34,13 +34,13 @@ CONFIG = {
     # Training Hyperparameters
     "batch_size": 1, #8,
     "num_workers": 4,
-    "learning_rate": 1e-4, # AdamW optimizer
+    "learning_rate": 1e-6, # AdamW optimizer
     "num_epochs": 200,
     "early_stopping_patience": 25,  # stops after 25 epochs without val_loss improvement
     
     # Loss and VAE Settings
     "recon_loss_type": "l1",        # 'l1' (MAE) is critical for sharp sinograms
-    "kl_warmup_epochs": 20,         # Gradually increase KL Divergence over 20 epochs
+    "kl_warmup_epochs": 50,         # Gradually increase KL Divergence over 20 epochs
     
     # Visualization
     "viz_freq": 5                   # generates visualizations every 5 epochs
