@@ -3,63 +3,17 @@ import torch
 import numpy as np
 import mrcfile
 import matplotlib.pyplot as plt
+import cv2
 
-# Import custom modules
 from models.vae import TomographyVAE
 from utils.reconstruction import reconstruct_fbp_single
-from utils.visualize import to_numpy
-
-def load_model(checkpoint_path, config, device):
-    """Loads the VAE model from a saved checkpoint."""
-    print(f"Loading checkpoint from: {checkpoint_path}")
-    
-    model = TomographyVAE(
-        latent_dim=config['latent_dim'], 
-        target_size=config['target_size'], 
-        resnet_type=config['resnet_type'],
-        freeze_early_layers=False 
-    )
-    
-    checkpoint = torch.load(checkpoint_path, map_location=device)
-    model.load_state_dict(checkpoint['model_state_dict'])
-    model.to(device)
-    model.eval() 
-    return model
-
-def load_and_preprocess_mrc(file_path, target_size=(181, 512)):
-    """Loads a single .mrc sinogram and normalizes it."""
-    if not os.path.exists(file_path):
-        raise FileNotFoundError(f"Input file not found: {file_path}")
-        
-    with mrcfile.open(file_path, permissive=True) as mrc:
-        data = mrc.data.copy().astype(np.float32)
-        
-    if data.ndim == 3 and data.shape[0] == 1:
-        data = np.squeeze(data, axis=0)
-        
-    if data.shape[0] == target_size[1]:
-        data = data.T
-        
-    assert data.shape == target_size, f"Expected {target_size}, got {data.shape}"
-    
-    # Normalize to [0,1]
-    d_min, d_max = data.min(), data.max()
-    if d_max - d_min > 1e-6:
-        data = (data - d_min) / (d_max - d_min)
-        
-    return data
-
-def save_mrc(data, file_path):
-    """Saves a numpy array back to an .mrc file."""
-    os.makedirs(os.path.dirname(file_path), exist_ok=True)
-    with mrcfile.new(file_path, overwrite=True) as mrc:
-        mrc.set_data(data.astype(np.float32))
 
 def apply_missing_wedge_mask(sino, tilt_range, step, base_angles_deg):
-    """Zeros out all rows that do not fall on the acquired angles."""
+    """
+    Applies the missing wedge mask to a complete sinogram.
+    """
     masked_sino = np.zeros_like(sino)
     min_angle, max_angle = tilt_range
-    
     acquired_angles = np.arange(min_angle, max_angle + 1e-5, step)
     
     for angle in acquired_angles:
@@ -68,82 +22,128 @@ def apply_missing_wedge_mask(sino, tilt_range, step, base_angles_deg):
         
     return masked_sino
 
-def run_inference(input_mrc_path, checkpoint_path, output_dir, mask_config=None, full_angle_range=(-90, 90)):
+def run_inference(
+    model_path: str,
+    input_mrc_path: str,
+    output_image_path: str,
+    is_complete: bool = True,
+    acquisition_config: dict = None,
+    threshold: float = 0.05,
+    target_size: tuple = (181, 362),
+    latent_dim: int = 64,
+    resnet_type: str = 'resnet18'
+):
     """
-    Main inference pipeline.
-    If mask_config is provided, it simulates an incomplete acquisition from a complete sinogram.
+    Runs inference on a single sinogram MRC file using the trained VAE.
     """
     device = torch.device('cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu')
     print(f"Running inference on {device}...")
-    os.makedirs(output_dir, exist_ok=True)
-    
-    inference_config = {
-        'latent_dim': 1024,
-        'target_size': (181, 362), 
-        'resnet_type': 'resnet18'
-    }
-    
-    base_angles_deg = np.linspace(full_angle_range[0], full_angle_range[1], inference_config['target_size'][0])
-    
-    model = load_model(checkpoint_path, inference_config, device)
-    
-    print(f"Processing input file: {input_mrc_path}")
-    target_sino_np = load_and_preprocess_mrc(input_mrc_path, target_size=inference_config['target_size'])
-    
-    if mask_config:
-        print(f"Applying mask: Range {mask_config['range']}, Step {mask_config['step']}°")
-        network_input_np = apply_missing_wedge_mask(target_sino_np, mask_config['range'], mask_config['step'], base_angles_deg)
-    else:
-        print("No mask config provided. Using input as-is.")
-        network_input_np = target_sino_np.copy()
-    
-    input_tensor = torch.from_numpy(network_input_np).unsqueeze(0).unsqueeze(0).to(device)
-    with torch.no_grad():
-        recon_x, _, _ = model(input_tensor) 
-    pred_sino_np = to_numpy(recon_x) 
-    
-    base_name = os.path.basename(input_mrc_path).replace('.mrc', '')
-    output_sino_path = os.path.join(output_dir, f"{base_name}_inpainted.mrc")
-    save_mrc(pred_sino_np, output_sino_path)
-    
-    print("Reconstructing 2D images via Filtered Back Projection...")
-    recon_target = reconstruct_fbp_single(target_sino_np, base_angles_deg, filter_name='ramp')
-    recon_masked = reconstruct_fbp_single(network_input_np, base_angles_deg, filter_name='ramp')
-    recon_pred = reconstruct_fbp_single(pred_sino_np, base_angles_deg, filter_name='ramp')
-    
-    fig, axes = plt.subplots(2, 3, figsize=(18, 10))
-    
-    sinos = [target_sino_np, network_input_np, pred_sino_np]
-    titles_top = ["Ground Truth (Complete)", "Masked Input to VAE", "VAE Prediction"]
-    for i in range(3):
-        axes[0, i].imshow(sinos[i], cmap='gray', aspect='auto')
-        axes[0, i].set_title(titles_top[i])
-        axes[0, i].set_ylabel("Angles")
-        axes[0, i].set_xlabel("Detector Pixels")
 
-    recons = [recon_target, recon_masked, recon_pred]
-    titles_bot = ["Perfect 2D Reconstruction", "Degraded 2D (Artifacts)", "Restored 2D (Inpainted)"]
-    for i in range(3):
-        axes[1, i].imshow(recons[i], cmap='gray', aspect='equal')
-        axes[1, i].set_title(titles_bot[i])
-        axes[1, i].axis('off')
+    model = TomographyVAE(
+        latent_dim=latent_dim,
+        target_size=target_size,
+        resnet_type=resnet_type,
+        freeze_early_layers=False
+    ).to(device)
     
+    checkpoint = torch.load(model_path, map_location=device)
+    model.load_state_dict(checkpoint['model_state_dict'])
+    model.eval()
+
+    with mrcfile.open(input_mrc_path, permissive=True) as mrc:
+        sino = mrc.data.copy().astype(np.float32)
+        if sino.ndim == 3 and sino.shape[0] == 1:
+            sino = np.squeeze(sino, axis=0)
+        if sino.shape[0] == target_size[1]:
+            sino = sino.T
+            
+    if sino.shape != target_size:
+        raise ValueError(f"Sinogram shape {sino.shape} does not match target size {target_size}")
+
+    # normalize sino to [0, 1]
+    sino_min, sino_max = sino.min(), sino.max()
+    if sino_max - sino_min > 1e-6:
+        sino = (sino - sino_min) / (sino_max - sino_min)
+
+    base_angles_deg = np.linspace(-90, 90, target_size[0])
+
+    # Masking (for complete sinograms)
+    if is_complete:
+        if acquisition_config is None:
+            raise ValueError("acquisition_config must be provided if is_complete=True")
+        input_sino = apply_missing_wedge_mask(sino, acquisition_config['range'], acquisition_config['step'], base_angles_deg)
+    else:
+        input_sino = sino.copy() # for incomplete sinos
+
+    # threshold
+    input_sino[input_sino < threshold] = 0.0
+
+    input_tensor = torch.from_numpy(input_sino).float().unsqueeze(0).unsqueeze(0).to(device)
+
+    with torch.no_grad():
+        pred_tensor, _, _ = model(input_tensor)
+        
+    pred_sino = pred_tensor.squeeze().cpu().numpy()
+
+    print("Performing FBP Reconstructions...")
+    recon_input_2d = reconstruct_fbp_single(input_sino, base_angles_deg, filter_name='ramp')
+    recon_pred_2d = reconstruct_fbp_single(pred_sino, base_angles_deg, filter_name='ramp')
+
+
+    print("Extracting object mask...")
+    
+    # from [0, 1] values to [0, 255]
+    recon_min, recon_max = recon_pred_2d.min(), recon_pred_2d.max()
+    recon_uint8 = (255.0 * (recon_pred_2d - recon_min) / (recon_max - recon_min + 1e-8)).astype(np.uint8)
+
+    # Gaussian Blur to smooth out FBP noise and streaking artifacts
+    blurred = cv2.GaussianBlur(recon_uint8, (5, 5), 0)
+
+    # automatically separate object from background
+    _, binary_mask = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+    # morphological closing to fill small holes inside the object mask
+    kernel = np.ones((5, 5), np.uint8)
+    clean_mask = cv2.morphologyEx(binary_mask, cv2.MORPH_CLOSE, kernel)
+
+    mask_output_path = output_image_path.replace('.png', '_mask.png')
+    os.makedirs(os.path.dirname(mask_output_path), exist_ok=True)
+    cv2.imwrite(mask_output_path, clean_mask)
+    print(f"Binary mask saved to {mask_output_path}")
+
+
+    print(f"Saving dashboard results to {output_image_path}...")
+    fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+    
+    im0 = axes[0, 0].imshow(input_sino, cmap='gray', aspect='auto')
+    axes[0, 0].set_title("Input Sinogram")
+    fig.colorbar(im0, ax=axes[0, 0])
+    
+    im1 = axes[0, 1].imshow(pred_sino, cmap='gray', aspect='auto')
+    axes[0, 1].set_title("VAE Prediction")
+    fig.colorbar(im1, ax=axes[0, 1])
+
+    im2 = axes[1, 0].imshow(recon_input_2d, cmap='gray', aspect='equal')
+    axes[1, 0].set_title("FBP from Input")
+    axes[1, 0].axis('off')
+    
+    im3 = axes[1, 1].imshow(recon_pred_2d, cmap='gray', aspect='equal')
+    axes[1, 1].set_title("FBP from VAE Prediction")
+    axes[1, 1].axis('off')
+
     plt.tight_layout()
-    plot_path = os.path.join(output_dir, f"{base_name}_inference_dashboard.png")
-    plt.savefig(plot_path, dpi=200, bbox_inches='tight')
-    print(f"Saved inference dashboard to: {plot_path}")
-    print("Inference Complete!")
+    os.makedirs(os.path.dirname(output_image_path), exist_ok=True)
+    plt.savefig(output_image_path, dpi=200, bbox_inches='tight')
+    plt.close(fig)
+    print("Inference complete.")
 
 if __name__ == "__main__":
-    CHECKPOINT_FILE = "./VAEResNet/checkpoints/vae_resnet18_baseline/best_vae_model.pth"
-    INPUT_FILE = "./VAEResNet/dataset/synthetic_raw/synthetic_sino_0015.mrc" 
-    OUTPUT_FOLDER = "./VAEResNet/dataset/reconstructions/"
-    
-    TEST_MASK = {'range': (-50, 50), 'step': 5}
     
     run_inference(
-        input_mrc_path=INPUT_FILE, 
-        checkpoint_path=CHECKPOINT_FILE, 
-        output_dir=OUTPUT_FOLDER,
-        mask_config=TEST_MASK
+        model_path="./VAEResNet/checkpoints/vae_resnet18_baseline/train_500.pth",
+        input_mrc_path="./VAEResNet/dataset/synthetic_raw/synthetic_sino_0002.mrc",
+        output_image_path="./VAEResNet/dataset/reconstructions/result.png",
+        is_complete=True,
+        acquisition_config={'range': (-50, 50), 'step': 5},
+        threshold=0.05
     )

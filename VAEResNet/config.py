@@ -40,7 +40,7 @@ CONFIG = {
     
     # Loss and VAE Settings
     "recon_loss_type": "l1",        # 'l1' (MAE) is critical for sharp sinograms
-    "kl_warmup_epochs": 50,         # Gradually increase KL Divergence over 20 epochs
+    "kl_warmup_epochs": 70,         # Gradually increase KL Divergence over 70 epochs
     
     # Visualization
     "viz_freq": 5                   # generates visualizations every 5 epochs
