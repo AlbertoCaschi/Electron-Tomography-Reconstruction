@@ -4,12 +4,11 @@ import torch
 import numpy as np
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-import copy
 
 # Import our custom modules
 from models.vae import TomographyVAE
 from data.dataset import TomographyDataset
-from data.transforms import PairedCompose, RandomHorizontalShift, RandomHorizontalFlip, RandomIntensityScale, ToTensor
+from data.transforms import PairedCompose, RandomHorizontalShift, RandomHorizontalFlip, RandomIntensityScale, ThresholdFilter
 from utils.losses import VAELoss, BetaScheduler
 from utils.reconstruction import batch_reconstruct
 from utils.visualize import plot_reconstruction_dashboard, plot_training_curves
@@ -31,14 +30,17 @@ def train_model(config, train_sinos, val_sinos):
     os.makedirs(config['log_dir'], exist_ok=True)
 
     # Data Transforms
-    train_transform = PairedCompose([])
-    # train_transform = PairedCompose([
-    #     RandomHorizontalShift(max_shift=20, p=0.7),
-    #     RandomHorizontalFlip(p=0.5),
-    #     RandomIntensityScale(scale_range=(0.8, 1.2), p=0.5),
-    # ])
+    # train_transform = PairedCompose([])
+    train_transform = PairedCompose([
+        RandomHorizontalShift(max_shift=20, p=0.7),
+        RandomHorizontalFlip(p=0.5),
+        RandomIntensityScale(scale_range=(0.8, 1.2), p=0.5),
+        ThresholdFilter(threshold=0.05)
+    ])
     
-    val_transform = PairedCompose([])
+    val_transform = PairedCompose([
+        ThresholdFilter(threshold=0.05)
+    ])
 
     # load dataset
     base_angles_deg = np.linspace(config['full_angle_min'], config['full_angle_max'], config['target_size'][0])
@@ -61,7 +63,7 @@ def train_model(config, train_sinos, val_sinos):
 
     # loss
     criterion = VAELoss(recon_loss_type=config['recon_loss_type'])
-    beta_scheduler = BetaScheduler(start_value=0.0, end_value=0.01, warmup_epochs=config['kl_warmup_epochs'])
+    beta_scheduler = BetaScheduler(start_value=0.0, end_value=1.0, warmup_epochs=config['kl_warmup_epochs'])
     
     # optimizer
     optimizer = torch.optim.AdamW(model.parameters(), lr=config['learning_rate'], weight_decay=1e-4)

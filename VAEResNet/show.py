@@ -2,7 +2,7 @@ import mrcfile
 import matplotlib.pyplot as plt
 import numpy as np
 
-DATA_FOLDER = "./dataset/synthetic_raw"
+DATA_FOLDER = "./VAEResNet/dataset/synthetic_raw"
 SAMPLE_NUM = "0000"
 
 def check_mrc_dimensions_and_plot(path):

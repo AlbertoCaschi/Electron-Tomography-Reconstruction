@@ -85,7 +85,7 @@ def create_phantom(size=362):
     image = np.clip(image, 0.0, 1.0)
     return image
 
-def generate_dataset(output_dir="/Users/albertocaschi/Desktop/GenAI project/dataset/synthetic_raw", num_samples=10, target_size=(181, 362)):
+def generate_dataset(output_dir="./VAEResNet/dataset/synthetic_raw", num_samples=10, target_size=(181, 362)):
     """
     Generates phantoms, performs forward projection, and saves as MRC.
     """
@@ -110,5 +110,5 @@ def generate_dataset(output_dir="/Users/albertocaschi/Desktop/GenAI project/data
             mrc.set_data(sinogram)
 
 if __name__ == "__main__":
-    generate_dataset(num_samples=10)
+    generate_dataset(num_samples=1500)
     print("Synthetic dataset generation complete!")

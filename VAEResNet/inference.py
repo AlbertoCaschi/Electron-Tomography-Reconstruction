@@ -135,9 +135,9 @@ def run_inference(input_mrc_path, checkpoint_path, output_dir, mask_config=None,
     print("Inference Complete!")
 
 if __name__ == "__main__":
-    CHECKPOINT_FILE = "./checkpoints/vae_resnet18_baseline/best_vae_model.pth"
-    INPUT_FILE = "./dataset/synthetic_raw/synthetic_sino_0015.mrc" 
-    OUTPUT_FOLDER = "./dataset/reconstructions/"
+    CHECKPOINT_FILE = "./VAEResNet/checkpoints/vae_resnet18_baseline/best_vae_model.pth"
+    INPUT_FILE = "./VAEResNet/dataset/synthetic_raw/synthetic_sino_0015.mrc" 
+    OUTPUT_FOLDER = "./VAEResNet/dataset/reconstructions/"
     
     TEST_MASK = {'range': (-50, 50), 'step': 5}
     

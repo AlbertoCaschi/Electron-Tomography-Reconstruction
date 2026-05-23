@@ -7,8 +7,8 @@ from train import train_model
 # Main config dictionary
 CONFIG = {
     "experiment_name": "vae_resnet18_baseline",
-    "checkpoint_dir": "./checkpoints/",
-    "log_dir": "./logs/",
+    "checkpoint_dir": "./VAEResNet/checkpoints/",
+    "log_dir": "./VAEResNet/logs/",
 
     # detector width of 362 pixels
     "full_angle_min": -90,
@@ -28,15 +28,15 @@ CONFIG = {
 
     # Model Architecture
     "resnet_type": "resnet18", # resnet34
-    "freeze_early_layers": True,
-    "latent_dim": 1024,
+    "freeze_early_layers": False,
+    "latent_dim": 64,
 
     # Training Hyperparameters
-    "batch_size": 1, #8,
+    "batch_size": 8,
     "num_workers": 4,
-    "learning_rate": 1e-6, # AdamW optimizer
+    "learning_rate": 5e-5, # AdamW optimizer
     "num_epochs": 200,
-    "early_stopping_patience": 25,  # stops after 25 epochs without val_loss improvement
+    "early_stopping_patience": 50,  # stops after 50 epochs without val_loss improvement
     
     # Loss and VAE Settings
     "recon_loss_type": "l1",        # 'l1' (MAE) is critical for sharp sinograms
@@ -57,7 +57,7 @@ if __name__ == "__main__":
 
     print("Loading Ground Truth Sinograms from MRC files...")
 
-    data_folder = Path("./dataset/synthetic_raw")
+    data_folder = Path("./VAEResNet/dataset/synthetic_raw")
     mrc_file_paths = list(data_folder.iterdir())
 
     loaded_sinos = []
@@ -83,8 +83,8 @@ if __name__ == "__main__":
             loaded_sinos.append(data)
 
     # Training and validation splitting
-    train_sinos = loaded_sinos[:1000]
-    val_sinos = loaded_sinos[1000:1200]
+    train_sinos = loaded_sinos[:500]
+    val_sinos = loaded_sinos[500:600]
    
 
     print(f"Loaded {len(train_sinos)} training objects and {len(val_sinos)} validation object.")
