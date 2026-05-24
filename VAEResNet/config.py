@@ -37,10 +37,11 @@ CONFIG = {
     "learning_rate": 5e-5, # AdamW optimizer
     "num_epochs": 200,
     "early_stopping_patience": 50,  # stops after 50 epochs without val_loss improvement
+    "resume_training" : True,      # True -> resumes previous training
     
     # Loss and VAE Settings
     "recon_loss_type": "l1",        # 'l1' (MAE) is critical for sharp sinograms
-    "kl_warmup_epochs": 70,         # Gradually increase KL Divergence over 70 epochs
+    "kl_warmup_epochs": 75,         # Gradually increase KL Divergence over 75 epochs
     
     # Visualization
     "viz_freq": 5                   # generates visualizations every 5 epochs
@@ -83,8 +84,8 @@ if __name__ == "__main__":
             loaded_sinos.append(data)
 
     # Training and validation splitting
-    train_sinos = loaded_sinos[:500]
-    val_sinos = loaded_sinos[500:600]
+    train_sinos = loaded_sinos[:5]
+    val_sinos = loaded_sinos[5:6]
    
 
     print(f"Loaded {len(train_sinos)} training objects and {len(val_sinos)} validation object.")

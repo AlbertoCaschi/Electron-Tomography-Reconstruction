@@ -1,6 +1,6 @@
-import torch
 import numpy as np
 import matplotlib.pyplot as plt
+import csv
 import os
 
 def to_numpy(tensor):
@@ -96,29 +96,48 @@ def plot_reconstruction_dashboard(input_sino, target_sino, pred_sino,
     else:
         plt.show()
 
-def plot_training_curves(train_losses, val_losses, beta_values=None, save_path=None):
+def plot_training_curves(csv_path, save_path=None):
     """
-    Plots training and validation losses, and optionally the KL Beta schedule.
+    Reads training metrics from a CSV file and plots the complete history of 
+    training/validation losses, along with the KL Beta schedule.
     """
+    epochs = []
+    train_losses = []
+    val_losses = []
+    beta_values = []
+    
+    if not os.path.exists(csv_path):
+        print(f"Error: Could not find CSV file at {csv_path}")
+        return
+
+    with open(csv_path, mode='r') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            epochs.append(int(row['Epoch']))
+            train_losses.append(float(row['Train Loss']))
+            val_losses.append(float(row['Val Loss']))
+            beta_values.append(float(row['Beta']))
+
     fig, ax1 = plt.subplots(figsize=(10, 5))
 
     ax1.set_xlabel('Epoch')
     ax1.set_ylabel('Loss', color='tab:blue')
-    ax1.plot(train_losses, label='Train Total Loss', color='tab:blue', linestyle='-')
-    ax1.plot(val_losses, label='Val Total Loss', color='tab:cyan', linestyle='--')
+    
+    ax1.plot(epochs, train_losses, label='Train Total Loss', color='tab:blue', linestyle='-')
+    ax1.plot(epochs, val_losses, label='Val Total Loss', color='tab:cyan', linestyle='--')
     ax1.tick_params(axis='y', labelcolor='tab:blue')
     ax1.legend(loc='upper left')
     ax1.grid(True, alpha=0.3)
 
-    if beta_values is not None:
+    if beta_values:
         ax2 = ax1.twinx()  
         ax2.set_ylabel('KL Beta', color='tab:red')  
-        ax2.plot(beta_values, label='Beta Schedule', color='tab:red', linestyle=':')
+        ax2.plot(epochs, beta_values, label='Beta Schedule', color='tab:red', linestyle=':')
         ax2.tick_params(axis='y', labelcolor='tab:red')
         ax2.legend(loc='upper right')
 
     fig.tight_layout()
-    plt.title("Training Metrics")
+    plt.title("Training Metrics History")
     
     if save_path:
         os.makedirs(os.path.dirname(save_path), exist_ok=True)

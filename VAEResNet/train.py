@@ -69,13 +69,37 @@ def train_model(config, train_sinos, val_sinos):
     optimizer = torch.optim.AdamW(model.parameters(), lr=config['learning_rate'], weight_decay=1e-4)
     lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=5)
 
+    start_epoch = 1
+    best_val_loss = float('inf')
+    epochs_no_improve = 0
+
+    if config.get('resume_training', False):
+        latest_ckpt_path = os.path.join(config['checkpoint_dir'], "latest_vae_model.pth")
+        
+        if os.path.exists(latest_ckpt_path):
+            print(f"Resuming training from {latest_ckpt_path}...")
+            checkpoint = torch.load(latest_ckpt_path, map_location=device)
+            
+            # Load states
+            model.load_state_dict(checkpoint['model_state_dict'])
+            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+            lr_scheduler.load_state_dict(checkpoint['lr_scheduler_state_dict'])
+            
+            # Restore tracking variables
+            start_epoch = checkpoint['epoch'] + 1
+            best_val_loss = checkpoint.get('best_val_loss', float('inf'))
+            epochs_no_improve = checkpoint.get('epochs_no_improve', 0)
+            
+            print(f"-> Successfully resumed at Epoch {start_epoch} with Best Val Loss: {best_val_loss:.4f}")
+        else:
+            print(f"-> No latest checkpoint found at {latest_ckpt_path}. Starting from scratch.")
 
     train_losses, val_losses, beta_history = [], [], []
     best_val_loss = float('inf')
     epochs_no_improve = 0
 
     try:
-        for epoch in range(1, config['num_epochs'] + 1):
+        for epoch in range(start_epoch, config['num_epochs'] + 1):
             # TRAINING
             model.train()
             train_loss_epoch = 0.0
@@ -160,6 +184,16 @@ def train_model(config, train_sinos, val_sinos):
             else:
                 epochs_no_improve += 1
                 print(f"-> No improvement for {epochs_no_improve} epochs.")
+
+            latest_ckpt_path = os.path.join(config['checkpoint_dir'], "latest_vae_model.pth")
+            torch.save({
+                'epoch': epoch,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'lr_scheduler_state_dict': lr_scheduler.state_dict(),
+                'best_val_loss': best_val_loss,
+                'epochs_no_improve': epochs_no_improve
+            }, latest_ckpt_path)
                 
             if epochs_no_improve >= config['early_stopping_patience']:
                 print("!!! Early Stopping Triggered !!!")
@@ -168,20 +202,37 @@ def train_model(config, train_sinos, val_sinos):
     except KeyboardInterrupt:
         print("\n\n----- Training interrupted by user (Ctrl+C). Saving progress so far... -----")
 
-    # plot training curves
     if train_losses:
-        print("Generating loss curves...")
-        loss_curve_path = os.path.join(config['log_dir'], "training_curves.png")
-        plot_training_curves(train_losses, val_losses, beta_values=beta_history, save_path=loss_curve_path)
         
-        # save losses to CSV file
         csv_path = os.path.join(config['log_dir'], "training_losses.csv")
-        with open(csv_path, mode='w', newline='') as f:
+
+        is_resuming = config.get('resume_training', False) and os.path.exists(csv_path)
+        file_mode = 'a' if is_resuming else 'w'
+        
+        with open(csv_path, mode=file_mode, newline='') as f:
             writer = csv.writer(f)
-            writer.writerow(['Epoch', 'Train Loss', 'Val Loss', 'Beta'])
-            for i in range(len(train_losses)):
-                writer.writerow([i + 1, train_losses[i], val_losses[i], beta_history[i]])
-        print(f"Saved losses to {csv_path}")
+            
+            # write header only when a new file is created
+            if not is_resuming:
+                writer.writerow(['Epoch', 'Train Loss', 'Val Loss', 'Beta'])
+                
+            completed_epochs = min(len(train_losses), len(val_losses), len(beta_history))
+            
+            for i in range(completed_epochs):
+                current_epoch = start_epoch + i
+                writer.writerow([current_epoch, train_losses[i], val_losses[i], beta_history[i]])
+                
+        print(f"{'Appended to' if is_resuming else 'Saved new'} losses to {csv_path}")
+
+
+        # plot training curves
+        if completed_epochs > 0:
+            print("Generating loss curves...")
+            loss_curve_path = os.path.join(config['log_dir'], "training_curves.png")
+            plot_training_curves(csv_path, save_path=loss_curve_path)
+        else:
+            print("Interrupted before completing a full epoch. CSV was created/appended, but no new curves plotted.")
+
     else:
         print("Training was interrupted before completing the first epoch. No curves or CSV generated.")
 
