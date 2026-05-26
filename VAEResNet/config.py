@@ -32,7 +32,7 @@ CONFIG = {
     "latent_dim": 64,
 
     # Training Hyperparameters
-    "batch_size": 8,
+    "batch_size": 16,
     "num_workers": 4,
     "learning_rate": 5e-5, # AdamW optimizer
     "num_epochs": 200,
@@ -84,8 +84,8 @@ if __name__ == "__main__":
             loaded_sinos.append(data)
 
     # Training and validation splitting
-    train_sinos = loaded_sinos[:5]
-    val_sinos = loaded_sinos[5:6]
+    train_sinos = loaded_sinos[:2500]
+    val_sinos = loaded_sinos[2500:3000]
    
 
     print(f"Loaded {len(train_sinos)} training objects and {len(val_sinos)} validation object.")

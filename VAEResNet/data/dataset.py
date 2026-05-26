@@ -34,24 +34,18 @@ class TomographyDataset(Dataset):
         actual_idx = idx % len(self.samples)
         obj_idx, cfg_idx = self.samples[actual_idx]
         
-        # 1. Fetch Ground Truth (Target)
         target_sino = np.copy(self.gt_sinos[obj_idx])
         config = self.configs[cfg_idx]
         
-        # 2. Normalize Target to [0, 1]
         target_sino = self._normalize(target_sino)
 
-        # 3. Create Masked Input based on config
         input_sino = self._apply_missing_wedge_mask(target_sino, config['range'], config['step'])
         
-        # 4. Add Electron Tomography Noise
         input_sino = self._add_noise(input_sino)
 
-        # 5. Apply External Transforms (Augmentations + Thresholding)
         if self.transform:
             input_sino, target_sino = self.transform(input_sino, target_sino)
 
-        # 6. Convert to PyTorch tensors and add the Channel dimension [C, H, W]
         input_tensor = torch.from_numpy(input_sino).float().unsqueeze(0)
         target_tensor = torch.from_numpy(target_sino).float().unsqueeze(0)
 

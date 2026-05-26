@@ -34,8 +34,8 @@ def train_model(config, train_sinos, val_sinos):
     train_transform = PairedCompose([
         RandomHorizontalShift(max_shift=20, p=0.7),
         RandomHorizontalFlip(p=0.5),
+        ThresholdFilter(threshold=0.05),
         RandomIntensityScale(scale_range=(0.8, 1.2), p=0.5),
-        ThresholdFilter(threshold=0.05)
     ])
     
     val_transform = PairedCompose([

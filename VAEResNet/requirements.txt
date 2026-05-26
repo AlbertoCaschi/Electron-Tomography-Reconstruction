@@ -24,7 +24,7 @@ scipy==1.13.1
 six==1.17.0
 sympy==1.14.0
 tifffile==2024.8.30
-torch == 2.5.1+cu121; platform_system == "Windows"
+torch == 2.8.0+cu126; platform_system == "Windows"
 torch == 2.8.0; platform_system == "Darwin"
 torchvision==0.23.0
 tqdm==4.67.3

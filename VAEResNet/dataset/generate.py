@@ -110,5 +110,5 @@ def generate_dataset(output_dir="./VAEResNet/dataset/synthetic_raw", num_samples
             mrc.set_data(sinogram)
 
 if __name__ == "__main__":
-    generate_dataset(num_samples=1500)
+    generate_dataset(num_samples=3000)
     print("Synthetic dataset generation complete!")

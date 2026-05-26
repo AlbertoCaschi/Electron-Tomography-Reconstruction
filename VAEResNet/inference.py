@@ -86,6 +86,7 @@ def run_inference(
     pred_sino = pred_tensor.squeeze().cpu().numpy()
 
     print("Performing FBP Reconstructions...")
+    recon_ground_truth_2d = reconstruct_fbp_single(sino, base_angles_deg, filter_name='ramp')
     recon_input_2d = reconstruct_fbp_single(input_sino, base_angles_deg, filter_name='ramp')
     recon_pred_2d = reconstruct_fbp_single(pred_sino, base_angles_deg, filter_name='ramp')
 
@@ -113,23 +114,28 @@ def run_inference(
 
 
     print(f"Saving dashboard results to {output_image_path}...")
-    fig, axes = plt.subplots(2, 2, figsize=(12, 10))
-    
-    im0 = axes[0, 0].imshow(input_sino, cmap='gray', aspect='auto')
-    axes[0, 0].set_title("Input Sinogram")
-    fig.colorbar(im0, ax=axes[0, 0])
-    
-    im1 = axes[0, 1].imshow(pred_sino, cmap='gray', aspect='auto')
-    axes[0, 1].set_title("VAE Prediction")
-    fig.colorbar(im1, ax=axes[0, 1])
+    fig, axes = plt.subplots(2, 3, figsize=(15, 10))
 
-    im2 = axes[1, 0].imshow(recon_input_2d, cmap='gray', aspect='equal')
-    axes[1, 0].set_title("FBP from Input")
-    axes[1, 0].axis('off')
+    im0 = axes[0, 0].imshow(sino, cmap='gray', aspect='auto')
+    axes[0, 0].set_title("Ground Truth")
+
+    im1 = axes[0, 1].imshow(input_sino, cmap='gray', aspect='auto')
+    axes[0, 1].set_title("Input Sinogram")
     
-    im3 = axes[1, 1].imshow(recon_pred_2d, cmap='gray', aspect='equal')
-    axes[1, 1].set_title("FBP from VAE Prediction")
+    im2 = axes[0, 2].imshow(pred_sino, cmap='gray', aspect='auto')
+    axes[0, 2].set_title("VAE Prediction")
+    
+    im3 = axes[1, 0].imshow(recon_ground_truth_2d, cmap='gray', aspect='equal')
+    axes[1, 0].set_title("Ground Truth FBP")
+    axes[1, 0].axis('off')
+
+    im4 = axes[1, 1].imshow(recon_input_2d, cmap='gray', aspect='equal')
+    axes[1, 1].set_title("FBP from Input")
     axes[1, 1].axis('off')
+    
+    im5 = axes[1, 2].imshow(recon_pred_2d, cmap='gray', aspect='equal')
+    axes[1, 2].set_title("FBP from VAE Prediction")
+    axes[1, 2].axis('off')
 
     plt.tight_layout()
     os.makedirs(os.path.dirname(output_image_path), exist_ok=True)
@@ -140,10 +146,10 @@ def run_inference(
 if __name__ == "__main__":
     
     run_inference(
-        model_path="./VAEResNet/checkpoints/vae_resnet18_baseline/train_500.pth",
+        model_path="./VAEResNet/checkpoints/vae_resnet18_baseline/best_vae_model.pth",
         input_mrc_path="./VAEResNet/dataset/synthetic_raw/synthetic_sino_0002.mrc",
         output_image_path="./VAEResNet/dataset/reconstructions/result.png",
-        is_complete=True,
+        is_complete=True,   # is_complete must be set to true if the input sinogram is complete (needs to be masked in the specified configuration)
         acquisition_config={'range': (-50, 50), 'step': 5},
         threshold=0.05
     )
