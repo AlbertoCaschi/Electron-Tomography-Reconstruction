@@ -146,8 +146,15 @@ def run_inference(
 if __name__ == "__main__":
     
     run_inference(
-        model_path="./VAEResNet/checkpoints/vae_resnet18_baseline/best_vae_model.pth",
-        input_mrc_path="./VAEResNet/dataset/synthetic_raw/synthetic_sino_0002.mrc",
+        model_path="./VAEResNet/checkpoints/vae_resnet18_baseline/train_final.pth",
+        input_mrc_path="./VAEResNet/dataset/synthetic_raw/synthetic_sino_0030.mrc", # forma curva semplice
+        # input_mrc_path="./VAEResNet/dataset/synthetic_raw/synthetic_sino_0033.mrc", # cubo + forma curva
+        # input_mrc_path="./VAEResNet/dataset/synthetic_raw/synthetic_sino_0299.mrc", # due cubi overlap
+        # input_mrc_path="./VAEResNet/dataset/synthetic_raw/synthetic_sino_0015.mrc", # cubo + "satelliti"
+        # input_mrc_path="./VAEResNet/dataset/synthetic_raw/synthetic_sino_0067.mrc", # forma curva + "satelliti"
+        # input_mrc_path="./VAEResNet/dataset/test_data/2_squares.mrc",
+        # input_mrc_path="./VAEResNet/dataset/test_data/catalyst.mrc",
+        # input_mrc_path="./VAEResNet/dataset/test_data/circle.mrc",
         output_image_path="./VAEResNet/dataset/reconstructions/result.png",
         is_complete=True,   # is_complete must be set to true if the input sinogram is complete (needs to be masked in the specified configuration)
         acquisition_config={'range': (-50, 50), 'step': 5},
