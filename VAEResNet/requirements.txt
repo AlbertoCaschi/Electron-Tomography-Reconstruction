@@ -15,7 +15,7 @@ mrcfile==1.5.4
 networkx==3.2.1
 numpy==2.0.2
 opencv-python==4.13.0.92
-packaging==26.2
+packaging
 pillow==11.3.0
 pyparsing==3.3.2
 python-dateutil==2.9.0.post0
@@ -28,6 +28,7 @@ tifffile==2024.8.30
 --extra-index-url https://download.pytorch.org/whl/cpu
 torch == 2.8.0+cu126; platform_system == "Windows"
 torch == 2.8.0; platform_system == "Darwin"
+torch == 2.8.0+cpu; platform_system == "Linux"
 torchvision==0.23.0
 tqdm==4.67.3
 typing_extensions==4.15.0
