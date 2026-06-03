@@ -5,7 +5,7 @@ from huggingface_hub import hf_hub_download
 from PIL import Image
 from config import CONFIG
 from models.vae import TomographyVAE
-from inference import run_inference 
+from inference import run_streamlit_inference 
 
 # --------------------------------------------------------
 # 1. Page Configuration & Theme
@@ -186,8 +186,8 @@ if mrc_file_path and os.path.exists(mrc_file_path):
         with st.spinner("Executing neural reconstruction algorithms... Please hold."):
             # Call your external module function
             # Pass model, file path, missing angles, and degree intervals
-            run_inference(
-                model_path = model,
+            run_streamlit_inference(
+                model = model,
                 input_mrc_path = mrc_file_path,
                 output_image_path = "assets/latest_reconstruction_result.png",
                 is_complete=True,
