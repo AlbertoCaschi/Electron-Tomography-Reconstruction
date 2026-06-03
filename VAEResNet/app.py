@@ -3,6 +3,8 @@ import streamlit as st
 import torch
 from huggingface_hub import hf_hub_download
 from PIL import Image
+from config import CONFIG
+from models.vae import TomographyVAE
 from inference import run_inference 
 
 # --------------------------------------------------------
@@ -33,17 +35,36 @@ def load_private_model():
     """Fetches the private PyTorch model weights from Hugging Face."""
     try:
         token = st.secrets["HF_TOKEN"]
-        # Replace with your actual Hugging Face username and repo name
+        
+        # 1. Download the file from Hugging Face
         model_path = hf_hub_download(
             repo_id="albertocaschi/VAEResNet_Tomography", 
             filename="VAEResNet.pth", 
             token=token
         )
-        model = torch.load(model_path, map_location=torch.device('cpu'))
+        
+        # 2. Set device to CPU for Streamlit Cloud
+        device = torch.device('cpu')
+        
+        # 3. Load the checkpoint dictionary
+        checkpoint = torch.load(model_path, map_location=device)
+        
+        # 4. Initialize the model skeleton
+        model = TomographyVAE(
+            latent_dim=CONFIG["latent_dim"],
+            target_size=CONFIG["target_size"],
+            resnet_type=CONFIG["resnet_type"],
+            freeze_early_layers=CONFIG["freeze_early_layers"]
+        ).to(device)
+        
+        # 5. Load the weights into the skeleton
+        model.load_state_dict(checkpoint['model_state_dict'])
         model.eval()
+        
         return model
+        
     except Exception as e:
-        st.error(f"Failed to load model from Hugging Face. Check your token/repo configurations. Error: {e}")
+        st.error(f"Failed to load model from Hugging Face. Error: {e}")
         return None
 
 # Load model globally into cache
@@ -52,15 +73,15 @@ model = load_private_model()
 # --------------------------------------------------------
 # 3. Header & Project Introduction
 # --------------------------------------------------------
-st.markdown('<div class="main-title">AI-Powered Electron Tomography Reconstruction</div>', unsafe_allowed_html=True)
+st.markdown('<div class="main-title">AI-Powered Electron Tomography Reconstruction</div>', unsafe_allow_html=True)
 st.markdown(
     '<div class="subtitle">This application leverages a deep generative framework to reconstruct high-fidelity '
     '3D volumes from limited-angle or missing-wedge electron tomography data. Developed for university research '
     'to bypass traditional analytical reconstruction artifacts.</div>', 
-    unsafe_allowed_html=True
+    unsafe_allow_html=True
 )
 
-st.markdown('<div class="section-header">Model Architecture</div>', unsafe_allowed_html=True)
+st.markdown('<div class="section-header">Model Architecture</div>', unsafe_allow_html=True)
 st.markdown(
     "The core framework relies on a **Variational Autoencoder (VAE)** paired with a pre-trained **ResNet-18** backbone "
     "acting as the feature extraction encoder. The network maps degraded projection spaces to an optimized latent distribution, "
@@ -77,7 +98,7 @@ except FileNotFoundError:
 # --------------------------------------------------------
 # 4. Interactive Test Section
 # --------------------------------------------------------
-st.markdown('<div class="section-header">Interactive Model Testing</div>', unsafe_allowed_html=True)
+st.markdown('<div class="section-header">Interactive Model Testing</div>', unsafe_allow_html=True)
 
 # Important User Reminder Box
 st.markdown("""
@@ -87,7 +108,7 @@ st.markdown("""
         The simulation configuration selected below will automatically drop projections to simulate 
         specific physical hardware constraints.
     </div>
-""", unsafe_allowed_html=True)
+""", unsafe_allow_html=True)
 
 # Data Input Selection
 input_mode = st.radio(
