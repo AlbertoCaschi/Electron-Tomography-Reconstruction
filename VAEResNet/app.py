@@ -23,7 +23,7 @@ st.markdown("""
     .section-header { font-size: 1.6rem; font-weight: 600; color: #1E3A8A; margin-top: 2rem; margin-bottom: 1rem; border-bottom: 2px solid #E2E8F0; padding-bottom: 0.5rem; }
     .info-box { background-color: #F8FAFC; border-left: 4px solid #3B82F6; padding: 1rem; border-radius: 0.375rem; margin-bottom: 1.5rem; }
     </style>
-""", unsafe_allowed_html=True)
+""", unsafe_allow_html=True)
 
 # --------------------------------------------------------
 # 2. Secure Private Model Loading
