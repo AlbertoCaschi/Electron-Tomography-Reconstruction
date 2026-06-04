@@ -24,6 +24,26 @@ st.markdown("""
     html, body, [class*="css"] {
         font-family: 'Inter', sans-serif;
     }
+            
+    /* --- NEW BACKGROUND STYLES --- */
+    /* Target the main Streamlit application container */
+    [data-testid="stAppViewContainer"] {
+        background-color: #0B1120; 
+        
+        /* The tilted, curved gradient sweep anchored at the BOTTOM */
+        background-image: radial-gradient(ellipse 150% 100% at 50% 110%, 
+            rgba(0, 242, 254, 0.12) 0%,      /* Subtle glow at the very bottom */
+            rgba(79, 172, 254, 0.05) 40%,    /* Fades as it moves up */
+            transparent 60%                  /* Completely disappears before hitting the title */
+        );
+        background-attachment: fixed;
+    }
+    
+    /* Make the default Streamlit header transparent */
+    [data-testid="stHeader"] {
+        background: transparent;
+    }
+    /* ----------------------------- */
     
     .subtitle { 
         font-size: 1.15rem; 
