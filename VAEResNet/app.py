@@ -12,7 +12,6 @@ from inference import run_streamlit_inference
 # --------------------------------------------------------
 st.set_page_config(
     page_title="Electron Tomography Reconstruction",
-    # page_icon="🔬",
     layout="centered",
     initial_sidebar_state="collapsed"
 )
@@ -20,10 +19,10 @@ st.set_page_config(
 # Custom CSS for a clean, scientific aesthetic
 st.markdown("""
     <style>
-    .main-title { font-size: 2.4rem; font-weight: 700; color: #0F172A; margin-bottom: 0.5rem; }
-    .subtitle { font-size: 1.1rem; color: #475569; margin-bottom: 2rem; line-height: 1.6; }
-    .section-header { font-size: 1.6rem; font-weight: 600; color: #1E3A8A; margin-top: 2rem; margin-bottom: 1rem; border-bottom: 2px solid #E2E8F0; padding-bottom: 0.5rem; }
-    .info-box { background-color: #F8FAFC; border-left: 4px solid #3B82F6; padding: 1rem; border-radius: 0.375rem; margin-bottom: 1.5rem; }
+    .main-title { font-size: 2.4rem; font-weight: 700; color: #eef3f7; margin-bottom: 0.5rem; }
+    .subtitle { font-size: 1.1rem; color: #ffffff; margin-bottom: 2rem; line-height: 1.6; }
+    .section-header { font-size: 1.6rem; font-weight: 600; color: #dce6ef; margin-top: 2rem; margin-bottom: 1rem; border-bottom: 2px solid #E2E8F0; padding-bottom: 0.5rem; }
+    .info-box { background-color: #660000; border-left: 4px solid #3B82F6; padding: 1rem; border-radius: 0.375rem; margin-bottom: 1.5rem; }
     </style>
 """, unsafe_allow_html=True)
 
