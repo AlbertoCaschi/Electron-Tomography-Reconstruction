@@ -191,11 +191,11 @@ with col_intro:
     st.markdown("""
         <div class="glass-card">
             <div class="section-header">Project Overview</div>
-            <p style="color: #CBD5E1; line-height: 1.7;">
+            <p style="color: #CBD5E1; line-height: 1.7; text-align: justify; text-justify: inter-word;">
                 This project tackles the "missing wedge" problem in electron tomography, a challenge where limited projection angles result in severe reconstruction artifacts. To address this, we developed an AI-based inpainting pipeline using a Variational Autoencoder (VAE). The model takes sparse, incomplete sinograms and learns to hallucinate the missing projection data, enforcing physical consistency before standard Filtered Back Projection (FBP) is applied. By training on 3000 synthetically generated samples in different acquisition configurations and augmenting with noise and geometric shifts, the network moves beyond memorization to accurately reconstruct 2D object slices from highly degraded input data.
             </p>
             <div class="section-header" style="margin-top: 1.5rem;">Model Architecture</div>
-            <p style="color: #CBD5E1; line-height: 1.7;">
+            <p style="color: #CBD5E1; line-height: 1.7; text-align: justify; text-justify: inter-word;">
                 The architecture is a Variational Autoencoder utilizing a pre-trained ResNet-18 base as the encoder. The ResNet compresses the single-channel input sinogram down to a 64-dimensional latent space, using the reparameterization trick to enforce a Gaussian distribution constraint. The decoder reshapes this latent vector and employs five sequential upsampling blocks (Resize-Convolutions with Batch Normalization) to prevent checkerboard artifacts. The network is optimized using AdamW with an L1 reconstruction loss and a dynamically scheduled KL Divergence penalty, forcing the model to learn generalizable geometric features rather than memorizing the training set.
             </p>
             <p style="color: #CBD5E1; line-height: 1.7;">
@@ -245,7 +245,7 @@ with col_config:
 
     if input_mode == "Use a preloaded example file":
         example_choice = st.selectbox(
-            "Select an example dataset:",
+            "Select an example sinogram:",
             ["2 Squares", "Catalyst"]
         )
         filename = "2_squares.mrc" if "2 Squares" in example_choice else "catalyst.mrc"
@@ -368,8 +368,8 @@ with col_exec:
                     </style>
                     
                     <div class="custom-loader-container">
-                        <div style="font-size: 3rem; animation: pulseText 2s infinite;">RUNNING...</div>
-                        <div class="loader-text"></div>
+                        <div style="font-size: 3rem; animation: pulseText 2s infinite;">APPLYING RECONSTRUCTION MODEL</div>
+                        <div class="loader-text">Please wait...</div>
                         <div class="scanner-track">
                             <div class="scanner-beam"></div>
                         </div>
@@ -391,7 +391,7 @@ with col_exec:
                 
                 # Continue with your existing success logic...
                 if os.path.exists(output_image_path):
-                    st.success("✨ Reconstruction complete!")
+                    st.success("Reconstruction complete!")
                     
                     result_img = Image.open(output_image_path)
                     st.image(result_img, caption="Reconstruction output: input sinogram and neural networks solution", use_container_width=True)
