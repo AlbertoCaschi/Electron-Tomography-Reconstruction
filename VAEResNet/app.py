@@ -25,17 +25,6 @@ st.markdown("""
         font-family: 'Inter', sans-serif;
     }
     
-    /* Animated Gradient Title */
-    .main-title { 
-        font-size: 2.8rem; 
-        font-weight: 800; 
-        background: linear-gradient(90deg, #4facfe 0%, #00f2fe 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        margin-bottom: 0.2rem; 
-        animation: fadeIn 1s ease-in-out;
-    }
-    
     .subtitle { 
         font-size: 1.15rem; 
         color: #A0AEC0; 
@@ -78,6 +67,49 @@ st.markdown("""
         margin-bottom: 1.5rem; 
         color: #E2E8F0;
         animation: pulseBorder 2.5s infinite;
+    }
+            
+    /* Digital Data Flow Wrapper & Animation */
+    .title-wrapper {
+        position: relative;
+        overflow: hidden;
+        padding: 10px 0; /* Breathing room for the animation */
+        border-radius: 8px; /* Soft edges for the background */
+    }
+
+    /* The glowing data stream */
+    .title-wrapper::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -20%; /* Start outside the left edge */
+        width: 15%; /* Width of the beam */
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(0, 242, 254, 0.15), rgba(79, 172, 254, 0.25), transparent);
+        transform: skewX(-25deg); /* Angle it for a sense of speed */
+        animation: dataSweep 1.8s cubic-bezier(0.25, 1, 0.5, 1) forwards; /* Plays exactly once */
+        pointer-events: none; /* Prevents it from blocking text selection */
+        z-index: 0;
+    }
+
+    /* Keep the text above the background animation */
+    .main-title { 
+        position: relative;
+        z-index: 1;
+        font-size: 2.8rem; 
+        font-weight: 800; 
+        background: linear-gradient(90deg, #4facfe 0%, #00f2fe 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 0.2rem; 
+        animation: fadeIn 1s ease-in-out;
+    }
+
+    @keyframes dataSweep {
+        0% { left: -20%; opacity: 0; }
+        10% { opacity: 1; }
+        80% { opacity: 1; }
+        100% { left: 120%; opacity: 0; }
     }
     
     /* Keyframe Animations */
@@ -138,7 +170,11 @@ model = load_private_model()
 # --------------------------------------------------------
 # 3. Header Area (Full Width)
 # --------------------------------------------------------
-st.markdown('<div class="main-title">AI-Powered Electron Tomography</div>', unsafe_allow_html=True)
+st.markdown("""
+    <div class="title-wrapper">
+        <div class="main-title">AI-Powered Electron Tomography</div>
+    </div>
+""", unsafe_allow_html=True)
 st.markdown(
     '<div class="subtitle">Bypassing traditional analytical reconstruction artifacts using a deep '
     'generative framework for high-fidelity 3D volumes from limited-angle data.</div>', 
