@@ -280,14 +280,14 @@ with col_config:
             ]
         )
 
-        if "Rectangle" in example_choice:
-            filename = "rectangle.mrc"
+        if "Rectangle" in example_choice and "Oval" in example_choice:
+            filename = "rect_oval.mrc"
         elif "Oval 1" in example_choice:
             filename = "oval1.mrc"
         elif "Oval 2" in example_choice:
             filename = "oval2.mrc"
-        elif "Rectangle" in example_choice and "Oval" in example_choice:
-            filename = "rect_oval.mrc"
+        elif "Rectangle" in example_choice:
+            filename = "rectangle.mrc"
         elif "Circle" in example_choice:
             filename = "circle.mrc"
         elif "2 Squares" in example_choice:
