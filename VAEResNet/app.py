@@ -249,7 +249,10 @@ with col_config:
     if input_mode == "Use a preloaded example file":
         example_choice = st.selectbox(
             "Select an example sinogram:",
-            ["2 Squares", "Catalyst"]
+            [
+                "2 Squares",
+                "Catalyst"
+            ]
         )
         filename = "2_squares.mrc" if "2 Squares" in example_choice else "catalyst.mrc"
         mrc_file_path = os.path.join("assets", filename)
@@ -308,7 +311,8 @@ with col_exec:
             run_btn = st.button("🚀 Run Tomographic Reconstruction", use_container_width=True, type="primary")
             
             if run_btn:
-                output_image_path = os.path.join("assets", "latest_reconstruction_result.png")
+                output_image_path = os.path.join("assets", "full_reconstruction_result.png")
+                output_fbp_path = os.path.join("assets", "fbp_reconstruction_result.png")
                 
                 # 1. Create an empty container for our custom loader
                 loading_placeholder = st.empty()
@@ -384,6 +388,7 @@ with col_exec:
                     model = model,
                     input_mrc_path = mrc_file_path,
                     output_image_path = output_image_path,
+                    output_fbp_path = output_fbp_path,
                     is_complete=True,
                     acquisition_config = acquisition_config,
                     threshold = 0.05
@@ -399,11 +404,11 @@ with col_exec:
                     result_img = Image.open(output_image_path)
                     st.image(result_img, caption="Reconstruction output: input sinogram and neural networks solution", use_container_width=False)
                     
-                    with open(output_image_path, "rb") as file:
+                    with open(output_fbp_path, "rb") as file:
                         st.download_button(
                             label="📥 Download FBP reconstruction",
                             data=file,
-                            file_name="tomography_reconstruction_result.png",
+                            file_name=f"{filename}_reconstruction_result.png",
                             mime="image/png",
                             use_container_width=True
                         )

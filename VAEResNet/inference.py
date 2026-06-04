@@ -4,6 +4,7 @@ import numpy as np
 import mrcfile
 import matplotlib.pyplot as plt
 import cv2
+import PIL as Image
 
 from models.vae import TomographyVAE
 from utils.reconstruction import reconstruct_fbp_single
@@ -26,6 +27,7 @@ def run_streamlit_inference(
     model,
     input_mrc_path: str,
     output_image_path: str,
+    output_fbp_path: str,
     is_complete: bool = True,
     acquisition_config: dict = None,
     threshold: float = 0.05,
@@ -78,6 +80,11 @@ def run_streamlit_inference(
     recon_pred_2d = reconstruct_fbp_single(pred_sino, base_angles_deg, filter_name='ramp')
 
 
+    os.makedirs(os.path.dirname(output_fbp_path), exist_ok=True)
+    im = Image.fromarray(recon_pred_2d)
+    im.save(output_fbp_path)
+
+
     print("Extracting object mask...")
     
     # from [0, 1] values to [0, 255]
@@ -128,6 +135,7 @@ def run_streamlit_inference(
     os.makedirs(os.path.dirname(output_image_path), exist_ok=True)
     plt.savefig(output_image_path, dpi=200, bbox_inches='tight')
     plt.close(fig)
+
     print("Inference complete.")
 
 def run_inference(
