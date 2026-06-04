@@ -81,16 +81,11 @@ def run_streamlit_inference(
 
 
     os.makedirs(os.path.dirname(output_fbp_path), exist_ok=True)
-
-    # 1. Normalizza la matrice float nel range 0-255 e convertila in uint8
-    recon_8bit = recon_pred_2d - np.min(recon_pred_2d)  # Sposta il minimo a 0
-    # Evita la divisione per zero se la matrice è completamente vuota
+    recon_8bit = recon_pred_2d - np.min(recon_pred_2d)
     if np.max(recon_8bit) > 0:
         recon_8bit = (recon_8bit / np.max(recon_8bit) * 255).astype(np.uint8)
     else:
         recon_8bit = recon_8bit.astype(np.uint8)
-
-    # 2. Crea e salva l'immagine
     im = Image.fromarray(recon_8bit)
     im.save(output_fbp_path)    
 

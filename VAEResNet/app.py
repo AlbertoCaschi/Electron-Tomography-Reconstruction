@@ -213,7 +213,7 @@ with col_arch:
         st.image(arch_image, caption="VAE Network pipeline with ResNet-18 Feature Extractor.", use_container_width=True)
     except FileNotFoundError:
         # Better looking fallback placeholder
-        st.info("🖼️ **Architecture diagram placeholder:** Place 'architecture.png' in your 'assets/' folder to display the network pipeline here.")
+        st.info("**Architecture diagram placeholder:** Place 'architecture.png' in your 'assets/' folder to display the network pipeline here.")
 
 st.divider()
 
@@ -224,7 +224,7 @@ col_config, col_exec = st.columns(2, gap="large")
 
 # --- LEFT COLUMN: Configuration ---
 with col_config:
-    st.markdown('<div class="section-header">🎛️ Simulation Configuration</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header">Simulation Configuration</div>', unsafe_allow_html=True)
 
     input_mode = st.radio(
         "Choose sinogram source data:",
@@ -301,7 +301,7 @@ with col_config:
 
 # --- RIGHT COLUMN: Execution & Results ---
 with col_exec:
-    st.markdown('<div class="section-header">🔬 Inference & Results</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header">Inference & Results</div>', unsafe_allow_html=True)
     
     if mrc_file_path and os.path.exists(mrc_file_path):
         
@@ -406,9 +406,9 @@ with col_exec:
                     
                     with open(output_fbp_path, "rb") as file:
                         st.download_button(
-                            label="📥 Download FBP reconstruction",
+                            label="📥 Download FBP reconstruction (PNG)",
                             data=file,
-                            file_name=f"{filename}_reconstruction_result.png",
+                            file_name=f"{filename[:-4]}_reconstruction_result.png",
                             mime="image/png",
                             use_container_width=True
                         )
