@@ -267,9 +267,10 @@ def run_inference(
 if __name__ == "__main__":
     
     run_inference(
-        model_path="./VAEResNet/checkpoints/vae_resnet18_baseline/train_final.pth",
-        input_mrc_path="./VAEResNet/dataset/synthetic_raw/synthetic_sino_0030.mrc", # forma curva semplice
-        # input_mrc_path="./VAEResNet/dataset/synthetic_raw/synthetic_sino_0033.mrc", # cubo + forma curva
+        model_path="./VAEResNet/checkpoints/vae_resnet18_baseline/VAEResNet.pth",
+        # input_mrc_path="./VAEResNet/dataset/synthetic_raw/synthetic_sino_0030.mrc", # forma curva semplice
+        # input_mrc_path="./VAEResNet/dataset/synthetic_raw/synthetic_sino_0024.mrc", # rettangolo
+        input_mrc_path="./VAEResNet/dataset/synthetic_raw/synthetic_sino_0033.mrc", # cubo + forma curva
         # input_mrc_path="./VAEResNet/dataset/synthetic_raw/synthetic_sino_0299.mrc", # due cubi overlap
         # input_mrc_path="./VAEResNet/dataset/synthetic_raw/synthetic_sino_0015.mrc", # cubo + "satelliti"
         # input_mrc_path="./VAEResNet/dataset/synthetic_raw/synthetic_sino_0067.mrc", # forma curva + "satelliti"

@@ -193,11 +193,11 @@ with col_intro:
         <div class="glass-card">
             <div class="section-header">Project Overview</div>
             <p style="color: #CBD5E1; line-height: 1.7; text-align: justify; text-justify: inter-word;">
-                This project tackles the "missing wedge" problem in electron tomography, a challenge where limited projection angles result in severe reconstruction artifacts. To address this, we developed an AI-based inpainting pipeline using a Variational Autoencoder (VAE). The model takes sparse, incomplete sinograms and learns to hallucinate the missing projection data, enforcing physical consistency before standard Filtered Back Projection (FBP) is applied. By training on 3000 synthetically generated samples in different acquisition configurations and augmenting with noise and geometric shifts, the network moves beyond memorization to accurately reconstruct 2D object slices from highly degraded input data.
+                This project addresses the electron-tomography missing wedge by training a VAE-based inpainting model to infer absent sinogram data. Using 2500 synthetic samples with noise and geometric augmentation, the network learns physically consistent projections that improve FBP reconstruction, enabling accurate 2D slice recovery from severely incomplete inputs.
             </p>
             <div class="section-header" style="margin-top: 1.5rem;">Model Architecture</div>
             <p style="color: #CBD5E1; line-height: 1.7; text-align: justify; text-justify: inter-word;">
-                The architecture is a Variational Autoencoder utilizing a pre-trained ResNet-18 base as the encoder. The ResNet compresses the single-channel input sinogram down to a 64-dimensional latent space, using the reparameterization trick to enforce a Gaussian distribution constraint. The decoder reshapes this latent vector and employs five sequential upsampling blocks (Resize-Convolutions with Batch Normalization) to prevent checkerboard artifacts. The network is optimized using AdamW with an L1 reconstruction loss and a dynamically scheduled KL Divergence penalty, forcing the model to learn generalizable geometric features rather than memorizing the training set.
+                This model is a Variational Autoencoder built on a pre-trained ResNet-18 that compresses each sinogram into a small 64-number representation. A decoder then expands it back using smooth upsampling steps to avoid visual artifacts. Training uses smart regularization so the network learns real geometric patterns instead of memorizing examples.
             </p>
             <p style="color: #CBD5E1; line-height: 1.7;">
                 Check the slides for additional information.
@@ -250,11 +250,31 @@ with col_config:
         example_choice = st.selectbox(
             "Select an example sinogram:",
             [
+                "Rectangle",
+                "Oval 1",
+                "Oval 2",
+                "Rectangle + Oval",
+                "Circle",
                 "2 Squares",
                 "Catalyst"
             ]
         )
-        filename = "2_squares.mrc" if "2 Squares" in example_choice else "catalyst.mrc"
+
+        if "Rectangle" in example_choice:
+            filename = "rectangle.mrc"
+        elif "Oval 1" in example_choice:
+            filename = "oval1.mrc"
+        elif "Oval 2" in example_choice:
+            filename = "oval2.mrc"
+        elif "Rectangle + Oval" in example_choice:
+            filename = "rect_oval.mrc"
+        elif "Circle" in example_choice:
+            filename = "circle.mrc"
+        elif "2 Squares" in example_choice:
+            filename = "2_squares.mrc"
+        elif "Catalyst" in example_choice:
+            filename = "catalyst.mrc"
+
         mrc_file_path = os.path.join("assets", filename)
         
         if os.path.exists(mrc_file_path):
@@ -406,7 +426,7 @@ with col_exec:
                     
                     with open(output_fbp_path, "rb") as file:
                         st.download_button(
-                            label="📥 Download FBP reconstruction (PNG)",
+                            label="📥  Download FBP reconstruction (PNG)",
                             data=file,
                             file_name=f"{filename[:-4]}_reconstruction_result.png",
                             mime="image/png",
