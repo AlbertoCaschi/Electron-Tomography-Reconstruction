@@ -182,7 +182,7 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 st.markdown(
-    '<div class="subtitle">Alberto Caschi - UniUd</div>', 
+    '<div class="subtitle">Alberto Caschi - University of Udine</div>', 
     unsafe_allow_html=True
 )
 
