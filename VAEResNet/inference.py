@@ -4,7 +4,7 @@ import numpy as np
 import mrcfile
 import matplotlib.pyplot as plt
 import cv2
-import PIL as Image
+from PIL import Image
 
 from models.vae import TomographyVAE
 from utils.reconstruction import reconstruct_fbp_single
