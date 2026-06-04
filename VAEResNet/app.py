@@ -192,11 +192,14 @@ with col_intro:
         <div class="glass-card">
             <div class="section-header">Project Overview</div>
             <p style="color: #CBD5E1; line-height: 1.7;">
-                This project tackles the "missing wedge" problem in electron tomography, a challenge where limited projection angles result in severe reconstruction artifacts. To address this, we developed an AI-based inpainting pipeline using a Variational Autoencoder (VAE). The model takes sparse, incomplete sinograms and learns to hallucinate the missing projection data, enforcing physical consistency before standard Filtered Back Projection (FBP) is applied. By training on thousands of synthetically generated masks and augmenting with noise and geometric shifts, the network moves beyond memorization to accurately reconstruct 2D object slices from highly degraded input data.
+                This project tackles the "missing wedge" problem in electron tomography, a challenge where limited projection angles result in severe reconstruction artifacts. To address this, we developed an AI-based inpainting pipeline using a Variational Autoencoder (VAE). The model takes sparse, incomplete sinograms and learns to hallucinate the missing projection data, enforcing physical consistency before standard Filtered Back Projection (FBP) is applied. By training on 3000 synthetically generated samples in different acquisition configurations and augmenting with noise and geometric shifts, the network moves beyond memorization to accurately reconstruct 2D object slices from highly degraded input data.
             </p>
             <div class="section-header" style="margin-top: 1.5rem;">Model Architecture</div>
             <p style="color: #CBD5E1; line-height: 1.7;">
                 The architecture is a Variational Autoencoder utilizing a pre-trained ResNet-18 base as the encoder. The ResNet compresses the single-channel input sinogram down to a 64-dimensional latent space, using the reparameterization trick to enforce a Gaussian distribution constraint. The decoder reshapes this latent vector and employs five sequential upsampling blocks (Resize-Convolutions with Batch Normalization) to prevent checkerboard artifacts. The network is optimized using AdamW with an L1 reconstruction loss and a dynamically scheduled KL Divergence penalty, forcing the model to learn generalizable geometric features rather than memorizing the training set.
+            </p>
+            <p style="color: #CBD5E1; line-height: 1.7;">
+                For more information, please refer to the slides.
             </p>
         </div>
     """, unsafe_allow_html=True)
@@ -233,14 +236,14 @@ with col_config:
     """, unsafe_allow_html=True)
 
     input_mode = st.radio(
-        "Choose Sinogram Source Data:",
-        ["Use a Preloaded Example File", "Upload Custom .mrc File"],
+        "Choose sinogram source data:",
+        ["Use a preloaded example file", "Upload custom .mrc file"],
         horizontal=True
     )
 
     mrc_file_path = None
 
-    if input_mode == "Use a Preloaded Example File":
+    if input_mode == "Use a preloaded example file":
         example_choice = st.selectbox(
             "Select an example dataset:",
             ["2 Squares", "Catalyst"]
@@ -249,9 +252,9 @@ with col_config:
         mrc_file_path = os.path.join("assets", filename)
         
         if os.path.exists(mrc_file_path):
-            st.success(f"✅ **{example_choice}** initialized and ready.")
+            st.success(f"**{example_choice}** initialized and ready.")
         else:
-            st.warning(f"⚠️ Placeholder: Upload '{filename}' to your repository's 'assets/' folder.")
+            st.warning(f"Placeholder: upload '{filename}' to your repository's 'assets/' folder.")
             mrc_file_path = None
 
     else:
@@ -262,30 +265,30 @@ with col_config:
             os.makedirs("assets", exist_ok=True) 
             with open(mrc_file_path, "wb") as f:
                 f.write(uploaded_file.getbuffer())
-            st.success("✅ Custom .mrc file uploaded and parsed successfully.")
+            st.success("Custom .mrc file uploaded and parsed successfully.")
 
     st.markdown("<br>", unsafe_allow_html=True) # visual spacer
     
     config_choice = st.selectbox(
-        "Select Missing Wedge Hardware Simulation Limit:",
+        "Select missing wedge and projection simulation:",
         [
-            "±50° Wedge Limit (5° Step)",
-            "±50° Wedge Limit (10° Step)",
-            "±50° Wedge Limit (20° Step)",
-            "±40° Wedge Limit (5° Step)",
-            "±40° Wedge Limit (10° Step)",
-            "±40° Wedge Limit (20° Step)"
+            "±50° Wedge (5° Step)",
+            "±50° Wedge (10° Step)",
+            "±50° Wedge (20° Step)",
+            "±40° Wedge (5° Step)",
+            "±40° Wedge (10° Step)",
+            "±40° Wedge (20° Step)"
         ]
     )
 
     # Dictionary mapping config choice to parameters
     config_map = {
-        "±50° Wedge Limit (5° Step)": {'range': (-50, 50), 'step': 5},
-        "±50° Wedge Limit (10° Step)": {'range': (-50, 50), 'step': 10},
-        "±50° Wedge Limit (20° Step)": {'range': (-50, 50), 'step': 20},
-        "±40° Wedge Limit (5° Step)": {'range': (-40, 40), 'step': 5},
-        "±40° Wedge Limit (10° Step)": {'range': (-40, 40), 'step': 10},
-        "±40° Wedge Limit (20° Step)": {'range': (-40, 40), 'step': 20}
+        "±50° Wedge (5° Step)": {'range': (-50, 50), 'step': 5},
+        "±50° Wedge (10° Step)": {'range': (-50, 50), 'step': 10},
+        "±50° Wedge (20° Step)": {'range': (-50, 50), 'step': 20},
+        "±40° Wedge (5° Step)": {'range': (-40, 40), 'step': 5},
+        "±40° Wedge (10° Step)": {'range': (-40, 40), 'step': 10},
+        "±40° Wedge (20° Step)": {'range': (-40, 40), 'step': 20}
     }
     acquisition_config = config_map[config_choice]
 
@@ -365,8 +368,8 @@ with col_exec:
                     </style>
                     
                     <div class="custom-loader-container">
-                        <div style="font-size: 3rem; animation: pulseText 2s infinite;">🧠</div>
-                        <div class="loader-text">SYNTHESIZING 3D VOLUME...</div>
+                        <div style="font-size: 3rem; animation: pulseText 2s infinite;">RUNNING...</div>
+                        <div class="loader-text"></div>
                         <div class="scanner-track">
                             <div class="scanner-beam"></div>
                         </div>
@@ -391,20 +394,20 @@ with col_exec:
                     st.success("✨ Reconstruction complete!")
                     
                     result_img = Image.open(output_image_path)
-                    st.image(result_img, caption="Reconstruction Output: Input Sinogram vs Neural Networks Solution", use_container_width=True)
+                    st.image(result_img, caption="Reconstruction output: input sinogram and neural networks solution", use_container_width=True)
                     
                     with open(output_image_path, "rb") as file:
                         st.download_button(
-                            label="📥 Download High-Res Result Image",
+                            label="📥 Download FBP reconstruction",
                             data=file,
                             file_name="tomography_reconstruction_result.png",
                             mime="image/png",
                             use_container_width=True
                         )
                 else:
-                    st.error("❌ Inference executed, but output image could not be located.")
+                    st.error("Inference executed, but output image could not be located.")
             else:
                 # Empty state UI
-                st.info("👈 System ready. Configure parameters on the left and initialize reconstruction.")
+                st.info("System ready. Configure parameters on the left and initialize reconstruction.")
     else:
-        st.warning("⚠️ Please select or upload a valid .mrc file dataset to unlock execution parameters.")
+        st.warning("Please select or upload a valid .mrc file dataset to unlock execution parameters.")
