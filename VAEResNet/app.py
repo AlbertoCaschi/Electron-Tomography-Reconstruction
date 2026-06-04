@@ -7,16 +7,13 @@ from config import CONFIG
 from models.vae import TomographyVAE
 from inference import run_streamlit_inference 
 
-# --------------------------------------------------------
-# 1. Page Configuration & Theme
-# --------------------------------------------------------
+
 st.set_page_config(
     page_title="Electron Tomography Reconstruction",
-    layout="wide", # UPGRADED: Changed to wide layout for desktop optimization
+    layout="wide",
     initial_sidebar_state="collapsed"
 )
 
-# UPGRADED: Comprehensive modern CSS with animations and cards
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
@@ -25,25 +22,20 @@ st.markdown("""
         font-family: 'Inter', sans-serif;
     }
             
-    /* --- NEW BACKGROUND STYLES --- */
-    /* Target the main Streamlit application container */
     [data-testid="stAppViewContainer"] {
         background-color: #0B1120; 
         
-        /* The tilted, curved gradient sweep anchored at the BOTTOM */
         background-image: radial-gradient(ellipse 150% 150% at 100% 100%, 
-            rgba(102, 213, 250, 0.40) 0%,      /* Subtle glow at the very bottom */
-            /*rgba(22, 40, 130, 0.10) 40%,    Fades as it moves up */
-            transparent 75%                  /* Completely disappears before hitting the title */
+            rgba(102, 213, 250, 0.40) 0%,
+            transparent 75%
         );
         background-attachment: fixed;
     }
     
-    /* Make the default Streamlit header transparent */
+            
     [data-testid="stHeader"] {
         background: transparent;
     }
-    /* ----------------------------- */
     
     .subtitle { 
         font-size: 1.15rem; 
@@ -53,7 +45,6 @@ st.markdown("""
         animation: fadeIn 1.2s ease-in-out;
     }
     
-    /* Modern Card Layouts for Text */
     .glass-card {
         background: rgba(17, 25, 40, 0.4);
         border: 1px solid rgba(255, 255, 255, 0.1);
@@ -78,7 +69,6 @@ st.markdown("""
         gap: 10px;
     }
     
-    /* Animated Info Box */
     .info-box { 
         background: linear-gradient(90deg, rgba(30,58,138,0.3) 0%, rgba(15,23,42,0.1) 100%); 
         border-left: 4px solid #3B82F6; 
@@ -86,10 +76,8 @@ st.markdown("""
         border-radius: 6px; 
         margin-bottom: 1.5rem; 
         color: #E2E8F0;
-        animation: pulseBorder 2.5s infinite;
     }
             
-    /* Digital Data Flow Wrapper & Animation */
     .title-wrapper {
         position: relative;
         overflow: hidden;
@@ -97,23 +85,21 @@ st.markdown("""
         border-radius: 8px; /* Soft edges for the background */
     }
 
-    /* The glowing data stream */
     .title-wrapper::before {
         content: '';
         position: absolute;
         top: 0;
-        left: -20%; /* Start outside the left edge */
-        width: 15%; /* Width of the beam */
+        left: -30%;
+        width: 15%;
         height: 100%;
         background: linear-gradient(90deg, transparent, rgba(0, 242, 254, 0.15), rgba(79, 172, 254, 0.25), transparent);
         transform: skewX(-25deg); /* Angle it for a sense of speed */
-        animation: dataSweep 1.8s cubic-bezier(0.25, 1, 0.5, 1) forwards; /* Plays exactly once */
-        animation-delay: 1s; /* Delayed start as requested */
-        pointer-events: none; /* Prevents it from blocking text selection */
+        animation: dataSweep 3s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+        animation-delay: 1s;
+        pointer-events: none;
         z-index: 0;
     }
 
-    /* Keep the text above the background animation */
     .main-title { 
         position: relative;
         z-index: 1;
@@ -133,7 +119,6 @@ st.markdown("""
         100% { left: 120%; opacity: 0; }
     }
     
-    /* Keyframe Animations */
     @keyframes fadeIn {
         from { opacity: 0; transform: translateY(15px); }
         to { opacity: 1; transform: translateY(0); }
@@ -145,15 +130,14 @@ st.markdown("""
         100% { border-left-color: #3B82F6; }
     }
     
-    /* Style tweaks for Streamlit UI elements */
     div[data-testid="stRadio"] > label { font-weight: 600; color: #94A3B8; }
     div[data-testid="stSelectbox"] > label { font-weight: 600; color: #94A3B8; }
     </style>
 """, unsafe_allow_html=True)
 
-# --------------------------------------------------------
-# 2. Secure Private Model Loading
-# --------------------------------------------------------
+
+# Model loading into cache
+
 @st.cache_resource
 def load_private_model():
     """Fetches the private PyTorch model weights from Hugging Face."""
@@ -185,12 +169,13 @@ def load_private_model():
         st.error(f"Failed to load model from Hugging Face. Error: {e}")
         return None
 
-# Load model globally into cache
 model = load_private_model()
 
-# --------------------------------------------------------
-# 3. Header Area (Full Width)
-# --------------------------------------------------------
+
+## APP
+
+# Title
+
 st.markdown("""
     <div class="title-wrapper">
         <div class="main-title">AI-Powered Electron Tomography Reconstruction</div>
@@ -203,9 +188,9 @@ st.markdown(
 
 st.divider()
 
-# --------------------------------------------------------
-# 4. Context & Theory Section (Row 1)
-# --------------------------------------------------------
+
+# Overview
+
 col_intro, col_arch = st.columns(2, gap="large")
 
 with col_intro:
@@ -226,23 +211,24 @@ with col_intro:
     """, unsafe_allow_html=True)
 
 with col_arch:
-    # Added a spacer to push the image down and center it relative to the left column text
     st.markdown("<div style='margin-top: 3.5rem;'></div>", unsafe_allow_html=True)
     try:
         arch_image = Image.open("assets/architecture.png")
         st.image(arch_image, caption="VAE Network pipeline with ResNet-18 Feature Extractor.", use_container_width=True)
     except FileNotFoundError:
-        # Better looking fallback placeholder
         st.info("**Architecture diagram placeholder:** Place 'architecture.png' in your 'assets/' folder to display the network pipeline here.")
 
 st.divider()
 
-# --------------------------------------------------------
-# 5. Interactive Workspace Section (Row 2)
-# --------------------------------------------------------
+
+
+## MODEL TESTING PART
+
+
 col_config, col_exec = st.columns(2, gap="large")
 
-# --- LEFT COLUMN: Configuration ---
+# LEFT COLUMN: Configuration
+
 with col_config:
     st.markdown('<div class="section-header">Simulation Configuration</div>', unsafe_allow_html=True)
 
@@ -252,7 +238,6 @@ with col_config:
         horizontal=True
     )
 
-    # Info box only appears when custom upload is selected, directly below the radio buttons
     if input_mode == "Upload custom .mrc file":
         st.markdown("""
             <div class="info-box">
@@ -308,13 +293,12 @@ with col_config:
         if uploaded_file is not None:
             filename = "uploaded.mrc"
             mrc_file_path = os.path.join("assets", filename)
-            # Ensure assets dir exists for temp upload
             os.makedirs("assets", exist_ok=True) 
             with open(mrc_file_path, "wb") as f:
                 f.write(uploaded_file.getbuffer())
             st.success("Custom .mrc file uploaded and parsed successfully.")
 
-    st.markdown("<br>", unsafe_allow_html=True) # visual spacer
+    st.markdown("<br>", unsafe_allow_html=True)
     
     config_choice = st.selectbox(
         "Select missing wedge and projection simulation:",
@@ -328,7 +312,6 @@ with col_config:
         ]
     )
 
-    # Dictionary mapping config choice to parameters
     config_map = {
         "±50° Wedge (5° Step)": {'range': (-50, 50), 'step': 5},
         "±50° Wedge (10° Step)": {'range': (-50, 50), 'step': 10},
@@ -340,13 +323,12 @@ with col_config:
     acquisition_config = config_map[config_choice]
 
 
-# --- RIGHT COLUMN: Execution & Results ---
+# --- RIGHT COLUMN: Inference and results ---
 with col_exec:
     st.markdown('<div class="section-header">Inference & Results</div>', unsafe_allow_html=True)
     
     if mrc_file_path and os.path.exists(mrc_file_path):
         
-        # Wrapped in a visually distinct container
         with st.container():
             st.markdown("<div style='padding-top: 10px;'></div>", unsafe_allow_html=True)
             run_btn = st.button("🚀 Run Tomographic Reconstruction", use_container_width=True, type="primary")
@@ -355,10 +337,8 @@ with col_exec:
                 output_image_path = os.path.join("assets", "full_reconstruction_result.png")
                 output_fbp_path = os.path.join("assets", "fbp_reconstruction_result.png")
                 
-                # 1. Create an empty container for our custom loader
                 loading_placeholder = st.empty()
-                
-                # 2. Inject the custom CSS and HTML loader
+
                 loading_placeholder.markdown("""
                     <style>
                     .custom-loader-container {
@@ -424,7 +404,6 @@ with col_exec:
                     </div>
                 """, unsafe_allow_html=True)
                 
-                # 3. Run the inference while the loader is displayed
                 run_streamlit_inference(
                     model = model,
                     input_mrc_path = mrc_file_path,
@@ -435,10 +414,8 @@ with col_exec:
                     threshold = 0.05
                 )
                 
-                # 4. Clear the loader once inference is done!
                 loading_placeholder.empty()
                 
-                # Continue with your existing success logic...
                 if os.path.exists(output_image_path):
                     st.success("Reconstruction complete!")
                     
@@ -456,7 +433,6 @@ with col_exec:
                 else:
                     st.error("Inference executed, but output image could not be located.")
             else:
-                # Empty state UI
                 st.info("System ready. Configure parameters on the left and initialize reconstruction.")
     else:
         st.warning("Please select or upload a valid .mrc file.")
