@@ -88,6 +88,7 @@ st.markdown("""
         background: linear-gradient(90deg, transparent, rgba(0, 242, 254, 0.15), rgba(79, 172, 254, 0.25), transparent);
         transform: skewX(-25deg); /* Angle it for a sense of speed */
         animation: dataSweep 1.8s cubic-bezier(0.25, 1, 0.5, 1) forwards; /* Plays exactly once */
+        animation-delay: 1s; /* Delayed start as requested */
         pointer-events: none; /* Prevents it from blocking text selection */
         z-index: 0;
     }
@@ -205,6 +206,8 @@ with col_intro:
     """, unsafe_allow_html=True)
 
 with col_arch:
+    # Added a spacer to push the image down and center it relative to the left column text
+    st.markdown("<div style='margin-top: 3.5rem;'></div>", unsafe_allow_html=True)
     try:
         arch_image = Image.open("assets/architecture.png")
         st.image(arch_image, caption="VAE Network pipeline with ResNet-18 Feature Extractor.", use_container_width=True)
@@ -222,22 +225,24 @@ col_config, col_exec = st.columns(2, gap="large")
 # --- LEFT COLUMN: Configuration ---
 with col_config:
     st.markdown('<div class="section-header">🎛️ Simulation Configuration</div>', unsafe_allow_html=True)
-    
-    st.markdown("""
-        <div class="info-box">
-            <strong>Please note:</strong>
-            <ul>
-            <li>Upload a full sinogram (-90° to +90°, 1° steps). The app will simulate the missing wedge and projections you choose below.</li>
-            <li>Input sinograms must have the following size: <strong>[362, 181]</strong>.</li>
-            </ul>
-        </div>
-    """, unsafe_allow_html=True)
 
     input_mode = st.radio(
         "Choose sinogram source data:",
         ["Use a preloaded example file", "Upload custom .mrc file"],
         horizontal=True
     )
+
+    # Info box only appears when custom upload is selected, directly below the radio buttons
+    if input_mode == "Upload custom .mrc file":
+        st.markdown("""
+            <div class="info-box">
+                <strong>Please note:</strong>
+                <ul>
+                <li>Upload a full sinogram (-90° to +90°, 1° steps). The app will simulate the missing wedge and projections you choose below.</li>
+                <li>Input sinograms must have the following size: <strong>[362, 181]</strong>.</li>
+                </ul>
+            </div>
+        """, unsafe_allow_html=True)
 
     mrc_file_path = None
 
