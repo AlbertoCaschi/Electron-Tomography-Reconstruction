@@ -81,8 +81,8 @@ st.markdown("""
     .title-wrapper {
         position: relative;
         overflow: hidden;
-        padding: 10px 0; /* Breathing room for the animation */
-        border-radius: 8px; /* Soft edges for the background */
+        padding: 10px 0;
+        border-radius: 8px;
     }
 
     .title-wrapper::before {
@@ -93,8 +93,8 @@ st.markdown("""
         width: 15%;
         height: 100%;
         background: linear-gradient(90deg, transparent, rgba(0, 242, 254, 0.15), rgba(79, 172, 254, 0.25), transparent);
-        transform: skewX(-25deg); /* Angle it for a sense of speed */
-        animation: dataSweep 3s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+        transform: skewX(-25deg);
+        animation: dataSweep 2.5s cubic-bezier(0.25, 1, 0.5, 1) forwards;
         animation-delay: 1s;
         pointer-events: none;
         z-index: 0;
@@ -396,7 +396,7 @@ with col_exec:
                     </style>
                     
                     <div class="custom-loader-container">
-                        <div style="font-size: 2rem; animation: pulseText 2s infinite;">APPLYING RECONSTRUCTION MODEL</div>
+                        <div style="font-size: 2rem; animation: pulseText 2s infinite;">RECONSTRUCTING SINOGRAM</div>
                         <div class="loader-text">Please wait...</div>
                         <div class="scanner-track">
                             <div class="scanner-beam"></div>
