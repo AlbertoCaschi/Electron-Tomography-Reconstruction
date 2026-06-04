@@ -306,16 +306,89 @@ with col_exec:
             if run_btn:
                 output_image_path = os.path.join("assets", "latest_reconstruction_result.png")
                 
-                with st.spinner("🧠 Executing neural reconstruction algorithms... Please hold."):
-                    run_streamlit_inference(
-                        model = model,
-                        input_mrc_path = mrc_file_path,
-                        output_image_path = output_image_path,
-                        is_complete=True,
-                        acquisition_config = acquisition_config,
-                        threshold = 0.05
-                    )
+                # 1. Create an empty container for our custom loader
+                loading_placeholder = st.empty()
+                
+                # 2. Inject the custom CSS and HTML loader
+                loading_placeholder.markdown("""
+                    <style>
+                    .custom-loader-container {
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        justify-content: center;
+                        padding: 3rem;
+                        background: rgba(17, 25, 40, 0.4);
+                        border-radius: 12px;
+                        border: 1px solid rgba(0, 242, 254, 0.2);
+                        margin: 2rem 0;
+                    }
                     
+                    .scanner-track {
+                        width: 80%;
+                        height: 4px;
+                        background: rgba(255, 255, 255, 0.1);
+                        border-radius: 4px;
+                        position: relative;
+                        overflow: hidden;
+                        margin-top: 1.5rem;
+                    }
+                    
+                    /* The moving glowing beam */
+                    .scanner-beam {
+                        position: absolute;
+                        top: 0;
+                        left: -50%;
+                        width: 50%;
+                        height: 100%;
+                        background: linear-gradient(90deg, transparent, #00f2fe, #4facfe, transparent);
+                        animation: scan 1.5s infinite linear;
+                    }
+                    
+                    .loader-text {
+                        color: #00f2fe;
+                        font-weight: 600;
+                        font-size: 1.1rem;
+                        letter-spacing: 2px;
+                        margin-top: 1rem;
+                        animation: pulseText 1.5s infinite ease-in-out;
+                    }
+                    
+                    /* Animations */
+                    @keyframes scan {
+                        0% { left: -50%; }
+                        100% { left: 100%; }
+                    }
+                    
+                    @keyframes pulseText {
+                        0%, 100% { opacity: 0.5; text-shadow: 0 0 0 transparent; }
+                        50% { opacity: 1; text-shadow: 0 0 10px rgba(0, 242, 254, 0.6); }
+                    }
+                    </style>
+                    
+                    <div class="custom-loader-container">
+                        <div style="font-size: 3rem; animation: pulseText 2s infinite;">🧠</div>
+                        <div class="loader-text">SYNTHESIZING 3D VOLUME...</div>
+                        <div class="scanner-track">
+                            <div class="scanner-beam"></div>
+                        </div>
+                    </div>
+                """, unsafe_allow_html=True)
+                
+                # 3. Run the inference while the loader is displayed
+                run_streamlit_inference(
+                    model = model,
+                    input_mrc_path = mrc_file_path,
+                    output_image_path = output_image_path,
+                    is_complete=True,
+                    acquisition_config = acquisition_config,
+                    threshold = 0.05
+                )
+                
+                # 4. Clear the loader once inference is done!
+                loading_placeholder.empty()
+                
+                # Continue with your existing success logic...
                 if os.path.exists(output_image_path):
                     st.success("✨ Reconstruction complete!")
                     
