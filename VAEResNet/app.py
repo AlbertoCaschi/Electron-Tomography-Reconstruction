@@ -32,9 +32,9 @@ st.markdown("""
         
         /* The tilted, curved gradient sweep anchored at the BOTTOM */
         background-image: radial-gradient(ellipse 150% 100% at 50% 110%, 
-            rgba(0, 242, 254, 0.12) 0%,      /* Subtle glow at the very bottom */
-            rgba(79, 172, 254, 0.05) 40%,    /* Fades as it moves up */
-            transparent 60%                  /* Completely disappears before hitting the title */
+            rgba(3, 223, 252, 0.12) 0%,      /* Subtle glow at the very bottom */
+            rgba(22, 40, 130, 0.05) 40%,    /* Fades as it moves up */
+            transparent 75%                  /* Completely disappears before hitting the title */
         );
         background-attachment: fixed;
     }
