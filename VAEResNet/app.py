@@ -31,7 +31,7 @@ st.markdown("""
         background-color: #0B1120; 
         
         /* The tilted, curved gradient sweep anchored at the BOTTOM */
-        background-image: radial-gradient(ellipse 150% 100% at 50% 110%, 
+        background-image: radial-gradient(ellipse 100% 150% at 100% 100%, 
             rgba(3, 223, 252, 0.12) 0%,      /* Subtle glow at the very bottom */
             rgba(22, 40, 130, 0.05) 40%,    /* Fades as it moves up */
             transparent 75%                  /* Completely disappears before hitting the title */
