@@ -199,7 +199,7 @@ with col_intro:
             <p style="color: #CBD5E1; line-height: 1.7; text-align: justify; text-justify: inter-word;">
                 This model is a <strong>Variational Autoencoder</strong> built on a pre-trained <strong>ResNet-18</strong> that compresses each sinogram into a 64-number representation (latent vector). A decoder then expands it back using smooth upsampling steps to avoid visual artifacts. Training uses smart regularization so the network learns real geometric patterns instead of memorizing examples.
             </p>
-            <p style="color: #B5C3D2; line-height: 1.7; font-size: 0.7rem;">
+            <p style="color: #B5C3D2; line-height: 1.7; font-size: 0.8rem;">
                 Check the slides for additional information.
             </p>
         </div>
@@ -286,7 +286,8 @@ with col_config:
     else:
         uploaded_file = st.file_uploader("Upload an experimental .mrc sinogram", type=["mrc"])
         if uploaded_file is not None:
-            mrc_file_path = os.path.join("assets", "temp_upload.mrc")
+            filename = "uploaded.mrc"
+            mrc_file_path = os.path.join("assets", filename)
             # Ensure assets dir exists for temp upload
             os.makedirs("assets", exist_ok=True) 
             with open(mrc_file_path, "wb") as f:
