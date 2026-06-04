@@ -193,13 +193,13 @@ with col_intro:
         <div class="glass-card">
             <div class="section-header">Project Overview</div>
             <p style="color: #CBD5E1; line-height: 1.7; text-align: justify; text-justify: inter-word;">
-                This project addresses the electron-tomography missing wedge by training a VAE-based inpainting model to infer absent sinogram data. Using 2500 synthetic samples with noise and geometric augmentation, the network learns physically consistent projections that improve FBP reconstruction, enabling accurate 2D slice recovery from severely incomplete inputs.
+                This method addresses the electron-tomography missing wedge and projections by training a VAE-based sinogram inpainting model to infer absent sinogram data. Using 2500 synthetic samples with noise and geometric augmentation, the network learns physically consistent projections that improve FBP reconstruction, enabling 2D slice recovery from severely incomplete inputs.
             </p>
             <div class="section-header" style="margin-top: 1.5rem;">Model Architecture</div>
             <p style="color: #CBD5E1; line-height: 1.7; text-align: justify; text-justify: inter-word;">
-                This model is a Variational Autoencoder built on a pre-trained ResNet-18 that compresses each sinogram into a small 64-number representation. A decoder then expands it back using smooth upsampling steps to avoid visual artifacts. Training uses smart regularization so the network learns real geometric patterns instead of memorizing examples.
+                This model is a <strong>Variational Autoencoder</strong> built on a pre-trained <strong>ResNet-18</strong> that compresses each sinogram into a 64-number representation (latent vector). A decoder then expands it back using smooth upsampling steps to avoid visual artifacts. Training uses smart regularization so the network learns real geometric patterns instead of memorizing examples.
             </p>
-            <p style="color: #CBD5E1; line-height: 1.7;">
+            <p style="color: #B5C3D2; line-height: 1.7; font-size: 0.7rem;">
                 Check the slides for additional information.
             </p>
         </div>
