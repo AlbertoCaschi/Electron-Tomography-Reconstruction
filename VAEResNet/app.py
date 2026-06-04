@@ -198,7 +198,7 @@ with col_intro:
         <div class="glass-card">
             <div class="section-header">Project Overview</div>
             <p style="color: #CBD5E1; line-height: 1.7; text-align: justify; text-justify: inter-word;">
-                This method addresses the electron-tomography missing wedge and projections by training a VAE-based sinogram inpainting model to infer absent sinogram data. Using 2500 synthetic samples with noise and augmentation, the network learns physically consistent projections that improve FBP reconstruction, enabling 2D slice recovery from severely incomplete inputs.
+                This method addresses the electron-tomography missing wedge and projections by training a VAE-based sinogram inpainting model to infer absent sinogram data. Using 2500 synthetic samples with noise and augmentations, the network learns physically consistent projections that improve FBP reconstruction, enabling 2D slice recovery from severely incomplete inputs.
             </p>
             <div class="section-header" style="margin-top: 1.5rem;">Model Architecture</div>
             <p style="color: #CBD5E1; line-height: 1.7; text-align: justify; text-justify: inter-word;">
