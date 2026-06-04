@@ -172,12 +172,11 @@ model = load_private_model()
 # --------------------------------------------------------
 st.markdown("""
     <div class="title-wrapper">
-        <div class="main-title">AI-Powered Electron Tomography</div>
+        <div class="main-title">AI-Powered Electron Tomography Reconstruction</div>
     </div>
 """, unsafe_allow_html=True)
 st.markdown(
-    '<div class="subtitle">Bypassing traditional analytical reconstruction artifacts using a deep '
-    'generative framework for high-fidelity 3D volumes from limited-angle data.</div>', 
+    '<div class="subtitle">Reconstructing incomplete electron tomography data using a ResNet-enhanced Variational Autoencoder.</div>', 
     unsafe_allow_html=True
 )
 
@@ -191,18 +190,13 @@ col_intro, col_arch = st.columns(2, gap="large")
 with col_intro:
     st.markdown("""
         <div class="glass-card">
-            <div class="section-header">🧠 Project Overview</div>
+            <div class="section-header">Project Overview</div>
             <p style="color: #CBD5E1; line-height: 1.7;">
-                Developed for university research, this application addresses the critical challenge of missing-wedge 
-                artifacts in electron tomography. By simulating physical hardware constraints, we can observe how our 
-                neural network compensates for lost projection data.
+                This project tackles the "missing wedge" problem in electron tomography, a challenge where limited projection angles result in severe reconstruction artifacts. To address this, we developed an AI-based inpainting pipeline using a Variational Autoencoder (VAE). The model takes sparse, incomplete sinograms and learns to hallucinate the missing projection data, enforcing physical consistency before standard Filtered Back Projection (FBP) is applied. By training on thousands of synthetically generated masks and augmenting with noise and geometric shifts, the network moves beyond memorization to accurately reconstruct 2D object slices from highly degraded input data.
             </p>
-            <div class="section-header" style="margin-top: 1.5rem;">⚙️ Model Architecture</div>
+            <div class="section-header" style="margin-top: 1.5rem;">Model Architecture</div>
             <p style="color: #CBD5E1; line-height: 1.7;">
-                The core framework relies on a <strong>Variational Autoencoder (VAE)</strong> paired with a pre-trained 
-                <strong>ResNet-18</strong> backbone acting as the feature extraction encoder. The network maps degraded 
-                projection spaces to an optimized latent distribution, allowing the decoder to generate structurally 
-                accurate tomograms even under severe missing wedge constraints.
+                The architecture is a Variational Autoencoder utilizing a pre-trained ResNet-18 base as the encoder. The ResNet compresses the single-channel input sinogram down to a 64-dimensional latent space, using the reparameterization trick to enforce a Gaussian distribution constraint. The decoder reshapes this latent vector and employs five sequential upsampling blocks (Resize-Convolutions with Batch Normalization) to prevent checkerboard artifacts. The network is optimized using AdamW with an L1 reconstruction loss and a dynamically scheduled KL Divergence penalty, forcing the model to learn generalizable geometric features rather than memorizing the training set.
             </p>
         </div>
     """, unsafe_allow_html=True)
@@ -210,7 +204,7 @@ with col_intro:
 with col_arch:
     try:
         arch_image = Image.open("assets/architecture.png")
-        st.image(arch_image, caption="Figure 1: VAE Network pipeline with ResNet-18 Feature Extractor.", use_container_width=True)
+        st.image(arch_image, caption="VAE Network pipeline with ResNet-18 Feature Extractor.", use_container_width=True)
     except FileNotFoundError:
         # Better looking fallback placeholder
         st.info("🖼️ **Architecture diagram placeholder:** Place 'architecture.png' in your 'assets/' folder to display the network pipeline here.")
@@ -228,9 +222,13 @@ with col_config:
     
     st.markdown("""
         <div class="info-box">
-            <strong>💡 Acquisition Notice:</strong> Input files must represent a full, continuous sinogram 
+            <strong>Please note:</strong>
+            <ul>
+            <li>Input files must represent a full, continuous sinogram 
             spanning from <strong>-90° to +90°</strong> with a 1° step resolution (181 total projections). 
-            The configuration below simulates physical hardware constraints by dropping projections.
+            You can choose below the missing wedge and projections configuration, which will be simulated by the program.</li>
+            <li>Input sinograms must have the following size: <strong>[362, 181]</strong>, where 362 is the pixel detector size.</li>
+            </ul>
         </div>
     """, unsafe_allow_html=True)
 
