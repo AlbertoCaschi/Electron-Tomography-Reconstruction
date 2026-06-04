@@ -199,7 +199,7 @@ with col_intro:
                 The architecture is a Variational Autoencoder utilizing a pre-trained ResNet-18 base as the encoder. The ResNet compresses the single-channel input sinogram down to a 64-dimensional latent space, using the reparameterization trick to enforce a Gaussian distribution constraint. The decoder reshapes this latent vector and employs five sequential upsampling blocks (Resize-Convolutions with Batch Normalization) to prevent checkerboard artifacts. The network is optimized using AdamW with an L1 reconstruction loss and a dynamically scheduled KL Divergence penalty, forcing the model to learn generalizable geometric features rather than memorizing the training set.
             </p>
             <p style="color: #CBD5E1; line-height: 1.7;">
-                For more information, please refer to the slides.
+                Check the slides for additional information.
             </p>
         </div>
     """, unsafe_allow_html=True)
@@ -227,10 +227,8 @@ with col_config:
         <div class="info-box">
             <strong>Please note:</strong>
             <ul>
-            <li>Input files must represent a full, continuous sinogram 
-            spanning from <strong>-90° to +90°</strong> with a 1° step resolution (181 total projections). 
-            You can choose below the missing wedge and projections configuration, which will be simulated by the program.</li>
-            <li>Input sinograms must have the following size: <strong>[362, 181]</strong>, where 362 is the pixel detector size.</li>
+            <li>Upload a full sinogram (-90° to +90°, 1° steps). The app will simulate the missing wedge and projections you choose below.</li>
+            <li>Input sinograms must have the following size: <strong>[362, 181]</strong>.</li>
             </ul>
         </div>
     """, unsafe_allow_html=True)
@@ -368,7 +366,7 @@ with col_exec:
                     </style>
                     
                     <div class="custom-loader-container">
-                        <div style="font-size: 3rem; animation: pulseText 2s infinite;">APPLYING RECONSTRUCTION MODEL</div>
+                        <div style="font-size: 2rem; animation: pulseText 2s infinite;">APPLYING RECONSTRUCTION MODEL</div>
                         <div class="loader-text">Please wait...</div>
                         <div class="scanner-track">
                             <div class="scanner-beam"></div>
@@ -394,7 +392,7 @@ with col_exec:
                     st.success("Reconstruction complete!")
                     
                     result_img = Image.open(output_image_path)
-                    st.image(result_img, caption="Reconstruction output: input sinogram and neural networks solution", use_container_width=True)
+                    st.image(result_img, caption="Reconstruction output: input sinogram and neural networks solution", use_container_width=False)
                     
                     with open(output_image_path, "rb") as file:
                         st.download_button(
@@ -410,4 +408,4 @@ with col_exec:
                 # Empty state UI
                 st.info("System ready. Configure parameters on the left and initialize reconstruction.")
     else:
-        st.warning("Please select or upload a valid .mrc file dataset to unlock execution parameters.")
+        st.warning("Please select or upload a valid .mrc file.")
