@@ -4,7 +4,6 @@ import mrcfile
 from pathlib import Path
 from train import train_model
 
-# Main config dictionary
 CONFIG = {
     "experiment_name": "vae_resnet18_baseline",
     "checkpoint_dir": "./VAEResNet/checkpoints/",
@@ -37,7 +36,7 @@ CONFIG = {
     "learning_rate": 5e-5, # AdamW optimizer
     "num_epochs": 200,
     "early_stopping_patience": 50,  # stops after 50 epochs without val_loss improvement
-    "resume_training" : True,      # True -> resumes previous training
+    "resume_training" : True,       # True -> resumes previous training
     
     # Loss and VAE Settings
     "recon_loss_type": "l1",        # 'l1' (MAE) is critical for sharp sinograms
