@@ -1,0 +1,153 @@
+import torch
+import torch.nn as nn
+
+def _extract(a, t, x_shape):
+    """
+    Extracts values from a 1D tensor 'a' at given indices 't' and reshapes them 
+    for broadcasting across the batch tensor 'x'.
+    
+    Args:
+        a (torch.Tensor): The 1D tensor of schedules (e.g., alphas_cumprod).
+        t (torch.Tensor): A batch of timestep indices, shape (Batch,).
+        x_shape (tuple): The shape of the target tensor (Batch, Channels, Height, Width).
+        
+    Returns:
+        torch.Tensor: The extracted values reshaped to (Batch, 1, 1, 1).
+    """
+    batch_size = t.shape[0]
+    out = a.gather(-1, t)
+    return out.reshape(batch_size, *((1,) * (len(x_shape) - 1)))
+
+
+class GaussianDiffusion(nn.Module):
+    def __init__(self, config):
+        """
+        Initializes the DDPM noise schedules and variance buffers.
+        
+        Args:
+            config (dict): The global configuration dictionary from config.py.
+        """
+        super().__init__()
+        
+        diff_cfg = config["diffusion"]
+        self.num_timesteps = diff_cfg.get("num_timesteps", 1000)
+        schedule = diff_cfg.get("schedule", "linear")
+        beta_start = diff_cfg.get("beta_start", 1e-4)
+        beta_end = diff_cfg.get("beta_end", 0.02)
+        
+        # Define the beta schedule
+        if schedule == "linear":
+            betas = torch.linspace(beta_start, beta_end, self.num_timesteps, dtype=torch.float32)
+        elif schedule == "cosine":
+            # Optional: Can implement standard cosine schedule here if needed later
+            raise NotImplementedError("Cosine schedule not yet implemented.")
+        else:
+            raise ValueError(f"Unknown diffusion schedule: {schedule}")
+            
+        alphas = 1.0 - betas
+        alphas_cumprod = torch.cumprod(alphas, axis=0)
+        alphas_cumprod_prev = torch.cat([torch.tensor([1.0]), alphas_cumprod[:-1]])
+        
+        # Register buffers so these tensors are automatically moved to the device (CPU/GPU)
+        # when model.to(device) is called.
+        self.register_buffer("betas", betas)
+        self.register_buffer("alphas_cumprod", alphas_cumprod)
+        self.register_buffer("alphas_cumprod_prev", alphas_cumprod_prev)
+        
+        # Calculations for forward diffusion q(x_t | x_0)
+        self.register_buffer("sqrt_alphas_cumprod", torch.sqrt(alphas_cumprod))
+        self.register_buffer("sqrt_one_minus_alphas_cumprod", torch.sqrt(1.0 - alphas_cumprod))
+        
+        # Calculations for reverse diffusion p(x_{t-1} | x_t)
+        self.register_buffer("sqrt_recip_alphas", torch.sqrt(1.0 / alphas))
+        
+        # Posterior variance: \tilde{\beta}_t = (1 - \bar{\alpha}_{t-1}) / (1 - \bar{\alpha}_t) * \beta_t
+        posterior_variance = betas * (1.0 - alphas_cumprod_prev) / (1.0 - alphas_cumprod)
+        # We clip to 1e-20 to avoid log(0) at t=0
+        self.register_buffer("posterior_variance", torch.clamp(posterior_variance, min=1e-20))
+
+    def q_sample(self, x_0, t, noise=None):
+        """
+        The Forward Process: Add noise to the clean image x_0 at timestep t.
+        
+        Args:
+            x_0 (torch.Tensor): The clean ground-truth image, shape (B, 1, H, W).
+            t (torch.Tensor): A batch of timesteps, shape (B,).
+            noise (torch.Tensor, optional): Pre-sampled Gaussian noise. Defaults to None.
+            
+        Returns:
+            torch.Tensor: The noisy image x_t.
+        """
+        if noise is None:
+            noise = torch.randn_like(x_0)
+            
+        sqrt_alpha_bar_t = _extract(self.sqrt_alphas_cumprod, t, x_0.shape)
+        sqrt_one_minus_alpha_bar_t = _extract(self.sqrt_one_minus_alphas_cumprod, t, x_0.shape)
+        
+        # Reparameterization trick: x_t = sqrt(\bar{\alpha}_t) * x_0 + sqrt(1 - \bar{\alpha}_t) * \epsilon
+        x_t = sqrt_alpha_bar_t * x_0 + sqrt_one_minus_alpha_bar_t * noise
+        
+        return x_t
+
+    @torch.no_grad()
+    def p_sample(self, model, x_t, x_fbp, t, t_index):
+        """
+        The Reverse Process (Single Step): Denoiser steps from x_t to x_{t-1}.
+        
+        Args:
+            model (nn.Module): The Measurement-Conditioned U-Net.
+            x_t (torch.Tensor): The noisy image at timestep t.
+            x_fbp (torch.Tensor): The deterministic FBP initialization.
+            t (torch.Tensor): A batch of timesteps (containing actual time values).
+            t_index (int): The integer index of the current timestep (used to check if t=0).
+            
+        Returns:
+            torch.Tensor: The less noisy image x_{t-1}.
+        """
+        # Predict the noise using our early fusion U-Net
+        noise_pred = model(x_t, x_fbp, t)
+        
+        # Extract the necessary coefficients for this timestep
+        betas_t = _extract(self.betas, t, x_t.shape)
+        sqrt_one_minus_alphas_cumprod_t = _extract(self.sqrt_one_minus_alphas_cumprod, t, x_t.shape)
+        sqrt_recip_alphas_t = _extract(self.sqrt_recip_alphas, t, x_t.shape)
+        
+        # Compute the predicted mean: \mu_\theta(x_t, t)
+        model_mean = sqrt_recip_alphas_t * (
+            x_t - betas_t * noise_pred / sqrt_one_minus_alphas_cumprod_t
+        )
+        
+        # If we are at the very last step (t=0), we do not add noise back in
+        if t_index == 0:
+            return model_mean
+        else:
+            posterior_variance_t = _extract(self.posterior_variance, t, x_t.shape)
+            noise = torch.randn_like(x_t)
+            # x_{t-1} = \mu_\theta(x_t, t) + \sigma_t * z
+            return model_mean + torch.sqrt(posterior_variance_t) * noise
+
+    @torch.no_grad()
+    def p_sample_loop(self, model, x_fbp):
+        """
+        The Complete Reverse Process: Generates a sample from pure noise given x_fbp.
+        (Primarily used for inference/validation).
+        
+        Args:
+            model (nn.Module): The Measurement-Conditioned U-Net.
+            x_fbp (torch.Tensor): The deterministic FBP initialization.
+            
+        Returns:
+            torch.Tensor: The final reconstructed image x_0.
+        """
+        device = x_fbp.device
+        b, c, h, w = x_fbp.shape
+        
+        # Start from pure Gaussian noise
+        x_t = torch.randn((b, c, h, w), device=device)
+        
+        # Iterate backwards from T-1 down to 0
+        for i in reversed(range(self.num_timesteps)):
+            t = torch.full((b,), i, device=device, dtype=torch.long)
+            x_t = self.p_sample(model, x_t, x_fbp, t, i)
+            
+        return x_t
