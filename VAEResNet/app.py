@@ -3,8 +3,15 @@ import streamlit as st
 import torch
 from huggingface_hub import hf_hub_download
 from PIL import Image
-from VAEResNet.config import CONFIG
 
+import sys
+from pathlib import Path
+
+root_path = Path(__file__).resolve().parent.parent
+if str(root_path) not in sys.path:
+    sys.path.insert(0, str(root_path))
+
+from VAEResNet.config import CONFIG
 from VAEResNet.models.vae import TomographyVAE
 from VAEResNet.inference import run_streamlit_inference 
 
