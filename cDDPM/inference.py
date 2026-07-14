@@ -6,10 +6,10 @@ import matplotlib.pyplot as plt
 import mrcfile
 
 # Import the custom modules we built
-from .config import CONFIG
-from .physics.operators import TomographyOperator
-from .models.unet import ConditionalUNet
-from .models.diffusion import GaussianDiffusion
+from cDDPM.config import CONFIG
+from cDDPM.physics.operators import TomographyOperator
+from cDDPM.models.unet import ConditionalUNet
+from cDDPM.models.diffusion import GaussianDiffusion
 
 def normalize_to_ddpm_range(image):
     """Min-max scales an image to [-1, 1]."""
