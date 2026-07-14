@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
-from .encoder import ResNetVAEEncoder
-from .decoder import SinogramDecoder
+from VAEResNet.models.encoder import ResNetVAEEncoder
+from VAEResNet.models.decoder import SinogramDecoder
 
 class TomographyVAE(nn.Module):
     """
