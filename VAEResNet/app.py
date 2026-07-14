@@ -147,16 +147,38 @@ st.markdown("""
 # Model loading into cache
 
 @st.cache_resource
+
+@st.cache_resource(show_spinner=False) # Turn off Streamlit's default spinner to prevent UI freezing
 def load_private_model():
     """Fetches the private PyTorch model weights from Hugging Face."""
+    
+    # 1. Create a clear status text so you know exactly where it is in the process
+    status = st.empty()
+    status.info("Authenticating with Hugging Face...")
+    
     try:
+        # Check if token exists to prevent silent KeyError
+        if "HF_TOKEN" not in st.secrets:
+            status.error("HF_TOKEN is missing from Streamlit secrets!")
+            return None
+            
         token = st.secrets["HF_TOKEN"]
+        
+        status.info("Downloading model weights... This may take a few minutes depending on file size.")
+        
+        # 2. Disable Hugging Face's terminal progress bar to prevent deadlocks
+        import os
+        os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
         
         model_path = hf_hub_download(
             repo_id="albertocaschi/VAEResNet_Tomography", 
             filename="VAEResNet.pth", 
-            token=token
+            token=token,
+            # Force download timeout so it eventually fails instead of hanging forever
+            local_files_only=False 
         )
+        
+        status.info("Model downloaded! Loading into memory...")
         
         device = torch.device('cpu')
         checkpoint = torch.load(model_path, map_location=device)
@@ -171,11 +193,46 @@ def load_private_model():
         model.load_state_dict(checkpoint['model_state_dict'])
         model.eval()
         
+        status.success("Model loaded successfully!")
+        status.empty() # Clear the messages once done
+        
         return model
         
     except Exception as e:
-        st.error(f"Failed to load model from Hugging Face. Error: {e}")
+        status.error(f"Failed to load model. Error: {e}")
+        print(f"DEBUG ERROR: {e}") # Force it to print to the terminal too
         return None
+
+
+# def load_private_model():
+    # """Fetches the private PyTorch model weights from Hugging Face."""
+    # try:
+        # token = st.secrets["HF_TOKEN"]
+        
+        # model_path = hf_hub_download(
+            # repo_id="albertocaschi/VAEResNet_Tomography", 
+            # filename="VAEResNet.pth", 
+            # token=token
+        # )
+        
+        # device = torch.device('cpu')
+        # checkpoint = torch.load(model_path, map_location=device)
+        
+        # model = TomographyVAE(
+            # latent_dim=CONFIG["latent_dim"],
+            # target_size=CONFIG["target_size"],
+            # resnet_type=CONFIG["resnet_type"],
+            # freeze_early_layers=CONFIG["freeze_early_layers"]
+        # ).to(device)
+        
+        # model.load_state_dict(checkpoint['model_state_dict'])
+        # model.eval()
+        
+        # return model
+        
+    # except Exception as e:
+        # st.error(f"Failed to load model from Hugging Face. Error: {e}")
+        # return None
 
 model = load_private_model()
 
