@@ -3,9 +3,10 @@ import streamlit as st
 import torch
 from huggingface_hub import hf_hub_download
 from PIL import Image
-from VAEResNet.config import CONFIG
-from VAEResNet.models.vae import TomographyVAE
-from VAEResNet.inference import run_streamlit_inference 
+from .config import CONFIG
+
+from .models.vae import TomographyVAE
+from .inference import run_streamlit_inference 
 
 
 st.set_page_config(

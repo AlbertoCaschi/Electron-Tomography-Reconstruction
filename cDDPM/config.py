@@ -57,10 +57,9 @@ CONFIG = {
 
 if __name__ == "__main__":
 
-    from train import train_model
     # Importing locally to avoid circular dependencies if train.py also imports CONFIG
     try:
-        from train import train_model
+        from .train import train_model
     except ImportError:
         print("Warning: 'train.py' not found or 'train_model' not implemented yet.")
         train_model = None

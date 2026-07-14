@@ -6,12 +6,12 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 # Import our custom modules
-from VAEResNet.models.vae import TomographyVAE
-from VAEResNet.data.dataset import TomographyDataset
-from VAEResNet.data.transforms import PairedCompose, RandomHorizontalShift, RandomHorizontalFlip, RandomIntensityScale, ThresholdFilter
-from VAEResNet.utils.losses import VAELoss, BetaScheduler
-from VAEResNet.utils.reconstruction import batch_reconstruct
-from VAEResNet.utils.visualize import plot_reconstruction_dashboard, plot_training_curves
+from .models.vae import TomographyVAE
+from .data.dataset import TomographyDataset
+from .data.transforms import PairedCompose, RandomHorizontalShift, RandomHorizontalFlip, RandomIntensityScale, ThresholdFilter
+from .utils.losses import VAELoss, BetaScheduler
+from .utils.reconstruction import batch_reconstruct
+from .utils.visualize import plot_reconstruction_dashboard, plot_training_curves
 
 def train_model(config, train_sinos, val_sinos):
     """

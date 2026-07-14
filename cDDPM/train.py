@@ -6,9 +6,9 @@ import torch.optim as optim
 from tqdm import tqdm
 
 # Import the custom modules we built
-from cDDPM.data.dataset import TomographyDataset
-from cDDPM.models.unet import ConditionalUNet
-from cDDPM.models.diffusion import GaussianDiffusion
+from .data.dataset import TomographyDataset
+from .models.unet import ConditionalUNet
+from .models.diffusion import GaussianDiffusion
 
 def train_model(config):
     """

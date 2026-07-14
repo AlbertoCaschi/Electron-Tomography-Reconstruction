@@ -2,7 +2,7 @@ import numpy as np
 import os
 import mrcfile
 from pathlib import Path
-from VAEResNet.train import train_model
+from .train import train_model
 
 CONFIG = {
     "experiment_name": "vae_resnet18_baseline",

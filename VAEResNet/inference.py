@@ -6,8 +6,8 @@ import matplotlib.pyplot as plt
 import cv2
 from PIL import Image
 
-from VAEResNet.models.vae import TomographyVAE
-from VAEResNet.utils.reconstruction import reconstruct_fbp_single
+from .models.vae import TomographyVAE
+from .utils.reconstruction import reconstruct_fbp_single
 
 def apply_missing_wedge_mask(sino, tilt_range, step, base_angles_deg):
     """
