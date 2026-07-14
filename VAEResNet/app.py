@@ -148,33 +148,34 @@ st.markdown("""
 
 @st.cache_resource
 
-@st.cache_resource(show_spinner=False) # Turn off Streamlit's default spinner to prevent UI freezing
+@st.cache_resource(show_spinner=False)
 def load_private_model():
     """Fetches the private PyTorch model weights from Hugging Face."""
-    
-    # 1. Create a clear status text so you know exactly where it is in the process
+
     status = st.empty()
     status.info("Authenticating with Hugging Face...")
     
     try:
-        # Check if token exists to prevent silent KeyError
         if "HF_TOKEN" not in st.secrets:
             status.error("HF_TOKEN is missing from Streamlit secrets!")
             return None
             
         token = st.secrets["HF_TOKEN"]
         
-        status.info("Downloading model weights... This may take a few minutes depending on file size.")
-        
-        # 2. Disable Hugging Face's terminal progress bar to prevent deadlocks
+        status.info("Downloading model weights... (Bypassing system cache)")
+
         import os
         os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
+        os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1" 
+
+        local_cache_path = os.path.join(os.getcwd(), "model_cache")
+        os.makedirs(local_cache_path, exist_ok=True)
         
         model_path = hf_hub_download(
             repo_id="albertocaschi/VAEResNet_Tomography", 
             filename="VAEResNet.pth", 
             token=token,
-            # Force download timeout so it eventually fails instead of hanging forever
+            cache_dir=local_cache_path,
             local_files_only=False 
         )
         
@@ -194,7 +195,7 @@ def load_private_model():
         model.eval()
         
         status.success("Model loaded successfully!")
-        status.empty() # Clear the messages once done
+        status.empty() 
         
         return model
         
