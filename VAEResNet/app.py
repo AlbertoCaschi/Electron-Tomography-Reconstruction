@@ -1,6 +1,6 @@
 import os
-import streamlit as st
 import requests
+import streamlit as st
 import torch
 from huggingface_hub import hf_hub_download
 from PIL import Image
@@ -147,20 +147,47 @@ st.markdown("""
 
 # Model loading into cache
 
-@st.cache_resource()
+@st.cache_resource(show_spinner=False)
 def load_private_model():
-    """Fetches the private PyTorch model weights from Hugging Face."""
+    """Fetches the private PyTorch model bypassing the HF library."""
+    
+    status = st.empty()
+    
     try:
+        if "HF_TOKEN" not in st.secrets:
+            status.error("HF_TOKEN is missing from Streamlit secrets!")
+            return None
+            
         token = st.secrets["HF_TOKEN"]
         
-        model_path = hf_hub_download(
-            repo_id="albertocaschi/VAEResNet_Tomography", 
-            filename="VAEResNet.pth", 
-            token=token
-        )
+        # 1. Use the direct REST API URL for your file
+        url = "https://huggingface.co/albertocaschi/VAEResNet_Tomography/resolve/main/VAEResNet.pth"
+        headers = {"Authorization": f"Bearer {token}"}
+        
+        # 2. Save it to Streamlit's /tmp directory (fastest, no file lock issues)
+        local_path = "/tmp/VAEResNet.pth"
+        
+        # Only download if we haven't already
+        if not os.path.exists(local_path):
+            status.info("Downloading model directly via HTTP...")
+            
+            # Stream the download so we don't blow up Streamlit's RAM
+            response = requests.get(url, headers=headers, stream=True)
+            
+            # Catch authentication or permission errors instantly
+            if response.status_code != 200:
+                status.error(f"HTTP Error {response.status_code}: Check if your token is valid and has 'Read' access.")
+                return None
+                
+            # Write the file in chunks
+            with open(local_path, "wb") as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    f.write(chunk)
+        
+        status.info("Model downloaded! Loading into PyTorch...")
         
         device = torch.device('cpu')
-        checkpoint = torch.load(model_path, map_location=device)
+        checkpoint = torch.load(local_path, map_location=device)
         
         model = TomographyVAE(
             latent_dim=CONFIG["latent_dim"],
@@ -172,10 +199,14 @@ def load_private_model():
         model.load_state_dict(checkpoint['model_state_dict'])
         model.eval()
         
+        status.success("Model loaded successfully!")
+        status.empty() 
+        
         return model
         
     except Exception as e:
-        st.error(f"Failed to load model from Hugging Face. Error: {e}")
+        status.error(f"Failed to load model. Error: {e}")
+        print(f"DEBUG ERROR: {e}")
         return None
 
 model = load_private_model()
