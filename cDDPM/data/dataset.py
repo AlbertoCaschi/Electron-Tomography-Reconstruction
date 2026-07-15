@@ -11,13 +11,6 @@ from cDDPM.physics.operators import TomographyOperator
 
 class TomographyDataset(Dataset):
     def __init__(self, config, mode="train"):
-        """
-        Initializes the dataset with continuous domain randomization and train/val splitting.
-        
-        Args:
-            config (dict): The global configuration dictionary.
-            mode (str): 'train', 'val', or 'test' to handle data splitting.
-        """
         self.config = config
         self.mode = mode
         self.image_dims = config["data"]["image_dims"]
@@ -39,10 +32,8 @@ class TomographyDataset(Dataset):
         if self.mode == "train":
             self.file_paths = all_files[:train_samples]
         elif self.mode == "val":
-            # Taking the rest of the dataset for validation
             self.file_paths = all_files[train_samples:]
         else:
-            # Fallback for 'test' or inference if pointed to the same directory
             self.file_paths = all_files
             
         if len(self.file_paths) == 0:
@@ -50,15 +41,15 @@ class TomographyDataset(Dataset):
             
         # Initialize the physics operator
         self.physics_operator = TomographyOperator(config["physics"])
+        
+        # --- NEW: Setup the raw angle array for the perfect reconstruction ---
+        raw_start, raw_end, raw_step = config["physics"]["raw_angles"]
+        self.full_angles = np.arange(raw_start, raw_end + raw_step, raw_step)
 
     def __len__(self):
-        # Artificially expand the dataset length so each object is seen multiple times per epoch
         return len(self.file_paths) * self.views_per_object
 
     def _normalize_to_ddpm_range(self, image):
-        """
-        Normalizes an image array to the standard DDPM range of [-1, 1].
-        """
         img_min = image.min()
         img_max = image.max()
         
@@ -67,36 +58,34 @@ class TomographyDataset(Dataset):
             
         img_normalized = (image - img_min) / (img_max - img_min)
         img_scaled = (img_normalized * 2.0) - 1.0
-        
         return img_scaled
 
     def _get_random_angles(self):
-        """
-        Dynamically generates a random acquisition geometry for the current sample.
-        """
         min_tilt, max_tilt = self.acq_cfg["tilt_bounds"]
         current_max_tilt = random.uniform(min_tilt, max_tilt)
         
         min_proj, max_proj = self.acq_cfg["projection_bounds"]
         num_projections = random.randint(min_proj, max_proj)
         
-        # Generate linearly spaced angles (e.g., from -53.2° to +53.2°)
         angles_deg = np.linspace(-current_max_tilt, current_max_tilt, num_projections)
         return angles_deg
 
     def __getitem__(self, idx):
-        """
-        Loads the slice, applies random limited-angle forward/back projection, and returns tensors.
-        """
-        # Determine the actual file to load based on the expanded dataset length
         actual_file_idx = idx // self.views_per_object
         file_path = self.file_paths[actual_file_idx]
         
-        # 1. Load the clean 2D spatial slice
+        # 1. Load the raw sinogram
         with mrcfile.open(file_path, permissive=True) as mrc:
-            x_0_np = np.squeeze(mrc.data).astype(np.float32).copy()
+            raw_sinogram = np.squeeze(mrc.data).astype(np.float32).copy()
             
-        # 2. Pad x_0 to match the target U-Net dimensions (368x368)
+        # 2. Ensure shape is (detector_pixels, angles) -> (362, 181)
+        if raw_sinogram.shape[0] == len(self.full_angles):
+            raw_sinogram = raw_sinogram.T
+            
+        # 3. Reconstruct the Ground Truth (Clean x_0)
+        x_0_np = self.physics_operator.filtered_back_project(raw_sinogram, self.full_angles)
+            
+        # 4. Pad x_0 to match the target U-Net dimensions (368x368)
         target_h, target_w = self.image_dims
         pad_h = max(0, target_h - x_0_np.shape[0])
         pad_w = max(0, target_w - x_0_np.shape[1])
@@ -113,18 +102,18 @@ class TomographyDataset(Dataset):
             constant_values=0
         )
         
-        # 3. Select a randomized acquisition geometry
+        # 5. Select a randomized acquisition geometry for the missing wedge
         angles_deg = self._get_random_angles()
         
-        # 4. Physics Simulation Pipeline
-        sinogram = self.physics_operator.forward_project(x_0_padded, angles_deg)
-        x_fbp_np = self.physics_operator.filtered_back_project(sinogram, angles_deg)
+        # 6. Simulate the missing wedge pipeline on the padded Ground Truth
+        limited_sinogram = self.physics_operator.forward_project(x_0_padded, angles_deg)
+        x_fbp_np = self.physics_operator.filtered_back_project(limited_sinogram, angles_deg)
         
-        # 5. Normalization to [-1, 1]
+        # 7. Normalization to [-1, 1]
         x_0_normalized = self._normalize_to_ddpm_range(x_0_padded)
         x_fbp_normalized = self._normalize_to_ddpm_range(x_fbp_np)
         
-        # 6. Tensor Conversion [1, H, W]
+        # 8. Tensor Conversion [1, H, W]
         x_0_tensor = torch.from_numpy(x_0_normalized).unsqueeze(0)
         x_fbp_tensor = torch.from_numpy(x_fbp_normalized).unsqueeze(0)
         

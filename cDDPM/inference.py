@@ -1,5 +1,4 @@
 import os
-import glob
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
@@ -52,9 +51,20 @@ def run_inference(checkpoint_path, test_file, acquisition_config):
     unet.eval()
     print(f"Successfully loaded checkpoint from epoch {checkpoint.get('epoch', 'N/A')}.")
     
+    # Setup full angles for Ground Truth reconstruction
+    raw_start, raw_end, raw_step = CONFIG["physics"]["raw_angles"]
+    full_angles = np.arange(raw_start, raw_end + raw_step, raw_step)
     
+    # 3. Data Processing (Raw Sinogram -> Ground Truth -> Simulated Artifacts)
     with mrcfile.open(test_file, permissive=True) as mrc:
-        x_0_np = np.squeeze(mrc.data).astype(np.float32).copy()
+        raw_sinogram = np.squeeze(mrc.data).astype(np.float32).copy()
+        
+    # Ensure shape is (detector_pixels, angles)
+    if raw_sinogram.shape[0] == len(full_angles):
+        raw_sinogram = raw_sinogram.T
+        
+    # Reconstruct the Ground Truth (Clean x_0)
+    x_0_np = physics_operator.filtered_back_project(raw_sinogram, full_angles)
         
     target_h, target_w = CONFIG["data"]["image_dims"]
     
@@ -73,16 +83,12 @@ def run_inference(checkpoint_path, test_file, acquisition_config):
         mode='constant', 
         constant_values=0
     )
-    # ------------------------------
-        
-    # Pick a specific acquisition geometry for testing (e.g., -40 to 40 degrees, step 5)
-    
     
     # Run the forward physics to get our conditioning FBP image using the PADDED image
     print("Simulating limited-angle measurement...")
     sinogram = physics_operator.forward_project(x_0_padded, acquisition_config)
     
-    # Note: Masking step removed because the limited angles above natively create the missing wedge
+    # Back-project the limited angle sinogram to get the missing wedge artifact image
     x_fbp_np = physics_operator.filtered_back_project(sinogram, acquisition_config)
     
     # Normalize to [-1, 1] and convert to PyTorch tensors of shape [1, 1, H, W]
@@ -102,7 +108,8 @@ def run_inference(checkpoint_path, test_file, acquisition_config):
     # Plotting
     fig, axes = plt.subplots(1, 4, figsize=(20, 5))
     
-    axes[0].imshow(x_0_np, cmap='gray')
+    # Use the padded ground truth so the dimensions visually match the reconstructions
+    axes[0].imshow(x_0_padded, cmap='gray')
     axes[0].set_title("Ground Truth")
     axes[0].axis('off')
     
@@ -121,14 +128,14 @@ def run_inference(checkpoint_path, test_file, acquisition_config):
     plt.tight_layout()
     plt.show()
 
-
-
-
-
 if __name__ == "__main__":
-
+    # Point this to your best checkpoint
     LATEST_CHECKPOINT = os.path.join(CONFIG["training"]["output_dir"], "unet_checkpoint_best.pt")
+    
+    # Update this path if needed
     TEST_FILE = r"C:\Users\Alberto\Desktop\Electron-Tomography-Reconstruction\cDDPM\dataset\test_data\2_squares.mrc"
+    
+    # Fixed acquisition array to test inference performance on a specific missing wedge
     ACQUISITION_CONFIG = np.arange(-50, 51, 5)
     
     try:

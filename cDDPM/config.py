@@ -21,7 +21,8 @@ CONFIG = {
     "physics": {
         "detector_pixels": 362,                    # Typically matches the width of the spatial slice
         "geometry_type": "parallel",               # Assuming parallel-beam geometry for standard 2D ET
-        "backend": "astra",                        # Designates the engine (e.g., ASTRA toolbox)
+        "backend": "skimage",                      # Designates the engine (e.g., ASTRA toolbox)
+        "raw_angles" : (-90, 90, 1)                # sinograms angles and step
     },
 
     # --- Model Parameters (cDDPM) ---
