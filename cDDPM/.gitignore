@@ -1,2 +1,49 @@
-dataset/synthetic_raw
-dataset/reconstructions
+# --- DATA ---
+checkpoints/
+dataset/reconstructions/
+dataset/synthetic_raw/
+logs/
+
+# --- Virtual environments ---
+venv/
+.env/
+.venv/
+
+# --- Python cache ---
+__pycache__/
+*.py[cod]
+*$py.class
+
+# --- Distribution / packaging ---
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# --- Logs and databases ---
+*.log
+*.sqlite3
+
+# --- Environment / secrets ---
+.env
+*.env
+.env.*
+
+# --- Jupyter ---
+.ipynb_checkpoints/
+
+# --- Tools ---
+.mypy_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# --- IDE / Editor ---
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# --- OS files ---
+.DS_Store
+Thumbs.db

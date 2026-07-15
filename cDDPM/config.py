@@ -4,7 +4,7 @@ import os
 CONFIG = {
     # --- Data Parameters ---
     "data": {
-        "dataset_path": "./dataset/synthetic_raw/",  # Directory containing your .mrc files
+        "dataset_path": "./cDDPM/dataset/synthetic_raw/",  # Directory containing your .mrc files
         "image_dims": (368, 368),                  # Target dimensions (height, width)
     },
 
@@ -49,9 +49,9 @@ CONFIG = {
         "epochs": 100,
         "batch_size": 2,
         "learning_rate": 1e-4,
-        "save_frequency": 10,                      # Save model checkpoint every N epochs
-        "output_dir": "./checkpoints/",            # Directory for saved model weights
-        "log_dir": "./logs/",                      # Directory for TensorBoard/logging outputs
+        "save_frequency": 1,                      # Save model checkpoint every N epochs
+        "output_dir": "./cDDPM/checkpoints/",            # Directory for saved model weights
+        "log_dir": "./cDDPM/logs/",                      # Directory for TensorBoard/logging outputs
     }
 }
 
@@ -59,7 +59,7 @@ if __name__ == "__main__":
 
     # Importing locally to avoid circular dependencies if train.py also imports CONFIG
     try:
-        from .train import train_model
+        from cDDPM.train import train_model
     except ImportError:
         print("Warning: 'train.py' not found or 'train_model' not implemented yet.")
         train_model = None

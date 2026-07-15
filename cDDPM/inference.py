@@ -57,19 +57,39 @@ def run_inference(checkpoint_path, test_image_index=0):
     # Grab a file from the dataset to act as our ground truth
     data_dir = CONFIG["data"]["dataset_path"]
     file_paths = sorted(glob.glob(os.path.join(data_dir, "*.mrc")))
-    test_file = file_paths[test_image_index]
+    test_file = r"C:\Users\Alberto\Desktop\Electron-Tomography-Reconstruction\cDDPM\dataset\test_data\circle.mrc"
     
     with mrcfile.open(test_file, permissive=True) as mrc:
         x_0_np = np.squeeze(mrc.data).astype(np.float32).copy()
         
-    # Pick a specific acquisition geometry for testing (e.g., -50 to 50 degrees, step 5)
-    angles_deg = np.arange(-40, 40, 5)
-    missing_wedge = (angles_deg.min, angles_deg.max)
+    # --- ADD PADDING LOGIC HERE ---
+    target_h, target_w = CONFIG["data"]["image_dims"]  # Pulls the 368x368 from config
     
-    # Run the forward physics to get our conditioning FBP image
+    pad_h = max(0, target_h - x_0_np.shape[0])
+    pad_w = max(0, target_w - x_0_np.shape[1])
+    
+    pad_top = pad_h // 2
+    pad_bottom = pad_h - pad_top
+    pad_left = pad_w // 2
+    pad_right = pad_w - pad_left
+    
+    # Pad the ground truth to 368x368
+    x_0_padded = np.pad(
+        x_0_np, 
+        ((pad_top, pad_bottom), (pad_left, pad_right)), 
+        mode='constant', 
+        constant_values=0
+    )
+    # ------------------------------
+        
+    # Pick a specific acquisition geometry for testing (e.g., -40 to 40 degrees, step 5)
+    angles_deg = np.arange(-40, 41, 5)
+    
+    # Run the forward physics to get our conditioning FBP image using the PADDED image
     print("Simulating limited-angle measurement...")
-    sinogram = physics_operator.forward_project(x_0_np, angles_deg)
-
+    sinogram = physics_operator.forward_project(x_0_padded, angles_deg)
+    
+    # Note: Masking step removed because the limited angles above natively create the missing wedge
     x_fbp_np = physics_operator.filtered_back_project(sinogram, angles_deg)
     
     # Normalize to [-1, 1] and convert to PyTorch tensors of shape [1, 1, H, W]
@@ -94,7 +114,7 @@ def run_inference(checkpoint_path, test_image_index=0):
     axes[0].axis('off')
     
     axes[1].imshow(sinogram, cmap='gray', aspect='auto')
-    axes[1].set_title(f"Masked Sinogram\nWedge: {missing_wedge}°")
+    axes[1].set_title(f"Masked Sinogram\nWedge: 40°") ## DA CAMBIARE ###
     axes[1].axis('off')
     
     axes[2].imshow(x_fbp_vis, cmap='gray')
@@ -110,7 +130,7 @@ def run_inference(checkpoint_path, test_image_index=0):
 
 if __name__ == "__main__":
     # Ensure you replace this with your actual latest checkpoint path once training finishes
-    LATEST_CHECKPOINT = os.path.join(CONFIG["training"]["output_dir"], "unet_checkpoint_epoch_100.pt")
+    LATEST_CHECKPOINT = os.path.join(CONFIG["training"]["output_dir"], "unet_checkpoint_epoch_1.pt")
     
     try:
         run_inference(LATEST_CHECKPOINT, test_image_index=0)
