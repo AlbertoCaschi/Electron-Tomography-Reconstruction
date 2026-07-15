@@ -5,7 +5,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import mrcfile
 
-# Import the custom modules we built
 from cDDPM.config import CONFIG
 from cDDPM.physics.operators import TomographyOperator
 from cDDPM.models.unet import ConditionalUNet
@@ -24,7 +23,7 @@ def unnormalize_from_ddpm_range(tensor):
     tensor = torch.clamp(tensor, -1.0, 1.0)
     return (tensor + 1.0) / 2.0
 
-def run_inference(checkpoint_path, test_image_index=0):
+def run_inference(checkpoint_path, test_file, acquisition_config):
     """
     Runs the inference pipeline to reconstruct a 2D slice from a simulated missing wedge.
     """
@@ -53,17 +52,11 @@ def run_inference(checkpoint_path, test_image_index=0):
     unet.eval()
     print(f"Successfully loaded checkpoint from epoch {checkpoint.get('epoch', 'N/A')}.")
     
-    # 3. Test Data Preparation
-    # Grab a file from the dataset to act as our ground truth
-    data_dir = CONFIG["data"]["dataset_path"]
-    file_paths = sorted(glob.glob(os.path.join(data_dir, "*.mrc")))
-    test_file = r"C:\Users\Alberto\Desktop\Electron-Tomography-Reconstruction\cDDPM\dataset\test_data\circle.mrc"
     
     with mrcfile.open(test_file, permissive=True) as mrc:
         x_0_np = np.squeeze(mrc.data).astype(np.float32).copy()
         
-    # --- ADD PADDING LOGIC HERE ---
-    target_h, target_w = CONFIG["data"]["image_dims"]  # Pulls the 368x368 from config
+    target_h, target_w = CONFIG["data"]["image_dims"]
     
     pad_h = max(0, target_h - x_0_np.shape[0])
     pad_w = max(0, target_w - x_0_np.shape[1])
@@ -83,14 +76,14 @@ def run_inference(checkpoint_path, test_image_index=0):
     # ------------------------------
         
     # Pick a specific acquisition geometry for testing (e.g., -40 to 40 degrees, step 5)
-    angles_deg = np.arange(-40, 41, 5)
+    
     
     # Run the forward physics to get our conditioning FBP image using the PADDED image
     print("Simulating limited-angle measurement...")
-    sinogram = physics_operator.forward_project(x_0_padded, angles_deg)
+    sinogram = physics_operator.forward_project(x_0_padded, acquisition_config)
     
     # Note: Masking step removed because the limited angles above natively create the missing wedge
-    x_fbp_np = physics_operator.filtered_back_project(sinogram, angles_deg)
+    x_fbp_np = physics_operator.filtered_back_project(sinogram, acquisition_config)
     
     # Normalize to [-1, 1] and convert to PyTorch tensors of shape [1, 1, H, W]
     x_fbp_tensor = torch.from_numpy(normalize_to_ddpm_range(x_fbp_np)).unsqueeze(0).unsqueeze(0).to(device, dtype=torch.float32)
@@ -110,30 +103,36 @@ def run_inference(checkpoint_path, test_image_index=0):
     fig, axes = plt.subplots(1, 4, figsize=(20, 5))
     
     axes[0].imshow(x_0_np, cmap='gray')
-    axes[0].set_title("Ground Truth (Clean Slice)")
+    axes[0].set_title("Ground Truth")
     axes[0].axis('off')
     
     axes[1].imshow(sinogram, cmap='gray', aspect='auto')
-    axes[1].set_title(f"Masked Sinogram\nWedge: 40°") ## DA CAMBIARE ###
+    axes[1].set_title(f"Masked Sinogram\nWedge: {max(acquisition_config)}°")
     axes[1].axis('off')
     
     axes[2].imshow(x_fbp_vis, cmap='gray')
-    axes[2].set_title("FBP (Conditioning Input)\nNotice the streaking artifacts")
+    axes[2].set_title("Conditioning FBP\n")
     axes[2].axis('off')
     
     axes[3].imshow(x_recon_vis, cmap='gray')
-    axes[3].set_title("cDDPM Reconstruction\n(Artifacts Removed)")
+    axes[3].set_title("cDDPM Reconstruction\n")
     axes[3].axis('off')
     
     plt.tight_layout()
     plt.show()
 
+
+
+
+
 if __name__ == "__main__":
-    # Ensure you replace this with your actual latest checkpoint path once training finishes
+
     LATEST_CHECKPOINT = os.path.join(CONFIG["training"]["output_dir"], "unet_checkpoint_epoch_1.pt")
+    TEST_FILE = r"C:\Users\Alberto\Desktop\Electron-Tomography-Reconstruction\cDDPM\dataset\test_data\2_squares.mrc"
+    ACQUISITION_CONFIG = np.arange(-50, 51, 5)
     
     try:
-        run_inference(LATEST_CHECKPOINT, test_image_index=0)
+        run_inference(LATEST_CHECKPOINT, TEST_FILE, ACQUISITION_CONFIG)
     except FileNotFoundError as e:
         print(e)
         print("Train the model first using 'python train.py' to generate a checkpoint.")

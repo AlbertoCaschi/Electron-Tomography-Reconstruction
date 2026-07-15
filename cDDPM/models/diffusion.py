@@ -31,7 +31,7 @@ class GaussianDiffusion(nn.Module):
         
         diff_cfg = config["diffusion"]
         self.num_timesteps = diff_cfg.get("num_timesteps", 1000)
-        schedule = diff_cfg.get("schedule", "linear")
+        schedule = diff_cfg.get("schedule", "cosine")
         beta_start = diff_cfg.get("beta_start", 1e-4)
         beta_end = diff_cfg.get("beta_end", 0.02)
         

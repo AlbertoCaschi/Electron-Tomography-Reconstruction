@@ -39,7 +39,7 @@ CONFIG = {
     # --- Diffusion Parameters ---
     "diffusion": {
         "num_timesteps": 1000,                     # Total T steps for the forward/reverse process
-        "schedule": "linear",                      # Variance schedule (options: 'linear', 'cosine')
+        "schedule": "cosine",                      # Variance schedule (options: 'linear', 'cosine')
         "beta_start": 1e-4,
         "beta_end": 0.02,
     },
