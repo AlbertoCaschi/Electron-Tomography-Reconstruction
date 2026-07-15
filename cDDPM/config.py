@@ -5,20 +5,17 @@ CONFIG = {
     # --- Data Parameters ---
     "data": {
         "dataset_path": "./cDDPM/dataset/synthetic_raw/",  # Directory containing your .mrc files
-        "image_dims": (368, 368),                  # Target dimensions (height, width)
+        "image_dims": (368, 368),                          # Target dimensions (height, width)
+        "train_samples": 2500,                             # Number of files for the training set
+        "val_samples": 500                                 # Number of files for the validation set
     },
 
     # --- Acquisition Configurations ---
-    # Reflects the different angular ranges and step sizes available in the dataset
-    "acquisition_configs": [
-        {'range': (-90, 90), 'step': 1},
-        {'range': (-50, 50), 'step': 5},
-        {'range': (-50, 50), 'step': 10},
-        {'range': (-50, 50), 'step': 20},
-        {'range': (-40, 40), 'step': 5},
-        {'range': (-40, 40), 'step': 10},
-        {'range': (-40, 40), 'step': 20}
-    ],
+    "acquisition": {
+        "tilt_bounds": (40, 60),          # Will sample a max tilt between +/- 40 and 60
+        "projection_bounds": (8, 20),     # Will sample between 8 and 20 total views
+        "views_per_object": 5            # Train/Validate on each object 10 times per epoch
+    },
 
     # --- Physics Parameters ---
     "physics": {
@@ -31,7 +28,7 @@ CONFIG = {
     "model": {
         "in_channels": 2,                          # Early fusion: 1 noisy latent (x_t) + 1 conditioning image (FBP)
         "out_channels": 1,                         # Network predicts the single-channel added noise
-        "base_channels": 64,                       # Starting feature map resolution
+        "base_channels": 32,                       # Starting feature map resolution
         "channel_multipliers": (1, 2, 4, 8),       # Multipliers for U-Net downsampling blocks
         "attention_resolutions": (16, 8),          # Spatial resolutions at which to apply cross-attention
     },
@@ -39,19 +36,22 @@ CONFIG = {
     # --- Diffusion Parameters ---
     "diffusion": {
         "num_timesteps": 1000,                     # Total T steps for the forward/reverse process
-        "schedule": "cosine",                      # Variance schedule (options: 'linear', 'cosine')
-        "beta_start": 1e-4,
-        "beta_end": 0.02,
+        "schedule": "cosine",                      # Variance schedule
     },
 
     # --- Training Parameters ---
     "training": {
-        "epochs": 100,
-        "batch_size": 2,
+        "epochs": 30,
+        "batch_size": 4,
+        "gradient_accumulation_steps": 2,                # 4 x 2 = Effective batch size of 8
         "learning_rate": 1e-4,
-        "save_frequency": 1,                      # Save model checkpoint every N epochs
+        "warmup_epochs": 5,                              # Number of epochs to warm up the LR
+        "min_lr": 1e-6,                                  # Minimum LR at the end of cosine decay
+        "save_frequency": 1,                             # Save model checkpoint every N epochs
+        "vis_frequency" : 1,
         "output_dir": "./cDDPM/checkpoints/",            # Directory for saved model weights
         "log_dir": "./cDDPM/logs/",                      # Directory for TensorBoard/logging outputs
+        "resume_checkpoint": r"C:\Users\Alberto\Desktop\Electron-Tomography-Reconstruction\cDDPM\checkpoints\unet_checkpoint_interrupted.pt"
     }
 }
 

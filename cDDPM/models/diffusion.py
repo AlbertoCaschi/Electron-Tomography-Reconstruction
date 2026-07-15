@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import math
 
 def _extract(a, t, x_shape):
     """
@@ -38,9 +39,25 @@ class GaussianDiffusion(nn.Module):
         # Define the beta schedule
         if schedule == "linear":
             betas = torch.linspace(beta_start, beta_end, self.num_timesteps, dtype=torch.float32)
+        # Define the beta schedule
+        if schedule == "linear":
+            betas = torch.linspace(beta_start, beta_end, self.num_timesteps, dtype=torch.float32)
         elif schedule == "cosine":
-            # Optional: Can implement standard cosine schedule here if needed later
-            raise NotImplementedError("Cosine schedule not yet implemented.")
+            steps = self.num_timesteps + 1
+            x = torch.linspace(0, self.num_timesteps, steps, dtype=torch.float32)
+            
+            # Compute f(t)
+            s = 0.008
+            f_t = torch.cos(((x / self.num_timesteps) + s) / (1.0 + s) * math.pi * 0.5) ** 2
+            
+            # Normalize alphas_cumprod to start exactly at 1.0
+            alphas_cumprod = f_t / f_t[0]
+            
+            # Derive betas: beta_t = 1 - (alpha_bar_t / alpha_bar_{t-1})
+            betas = 1.0 - (alphas_cumprod[1:] / alphas_cumprod[:-1])
+            
+            # Clip betas to prevent singularities near T
+            betas = torch.clip(betas, 0.0001, 0.999)
         else:
             raise ValueError(f"Unknown diffusion schedule: {schedule}")
             

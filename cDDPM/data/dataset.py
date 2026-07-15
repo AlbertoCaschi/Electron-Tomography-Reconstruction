@@ -6,86 +6,98 @@ import torch
 from torch.utils.data import Dataset
 import mrcfile
 
-# Assuming the physics operator is implemented as we outlined in the blueprint
-from physics.operators import TomographyOperator
-
+# Importing the physics operator
+from cDDPM.physics.operators import TomographyOperator
 
 class TomographyDataset(Dataset):
     def __init__(self, config, mode="train"):
         """
-        Initializes the dataset, loads file paths, and sets up the physics operator.
+        Initializes the dataset with continuous domain randomization and train/val splitting.
         
         Args:
             config (dict): The global configuration dictionary.
-            mode (str): 'train', 'val', or 'test' to handle data splitting if necessary.
+            mode (str): 'train', 'val', or 'test' to handle data splitting.
         """
         self.config = config
         self.mode = mode
         self.image_dims = config["data"]["image_dims"]
-        self.acquisition_configs = config["acquisition_configs"]
+        
+        # Randomized acquisition settings
+        self.acq_cfg = config["acquisition"]
+        self.views_per_object = self.acq_cfg.get("views_per_object", 10)
         
         # Gather all .mrc files from the dataset path
         data_dir = config["data"]["dataset_path"]
-        self.file_paths = sorted(glob.glob(os.path.join(data_dir, "*.mrc")))
+        all_files = sorted(glob.glob(os.path.join(data_dir, "*.mrc")))
         
-        if len(self.file_paths) == 0:
+        if len(all_files) == 0:
             raise FileNotFoundError(f"No .mrc files found in {data_dir}. Please check your path.")
             
+        # Apply the train/validation split
+        train_samples = config["data"].get("train_samples", 2500)
+        
+        if self.mode == "train":
+            self.file_paths = all_files[:train_samples]
+        elif self.mode == "val":
+            # Taking the rest of the dataset for validation
+            self.file_paths = all_files[train_samples:]
+        else:
+            # Fallback for 'test' or inference if pointed to the same directory
+            self.file_paths = all_files
+            
+        if len(self.file_paths) == 0:
+            raise ValueError(f"No files available for mode '{self.mode}'. Check your dataset folder and split counts.")
+            
         # Initialize the physics operator
-        # Note: If TomographyOperator uses GPU backends (like ASTRA), be mindful 
-        # of PyTorch DataLoader multiprocessing (num_workers > 0) which can cause CUDA context errors.
         self.physics_operator = TomographyOperator(config["physics"])
 
     def __len__(self):
-        return len(self.file_paths)
+        # Artificially expand the dataset length so each object is seen multiple times per epoch
+        return len(self.file_paths) * self.views_per_object
 
     def _normalize_to_ddpm_range(self, image):
         """
         Normalizes an image array to the standard DDPM range of [-1, 1].
-        Assumes the input image can have arbitrary physical attenuation values.
         """
         img_min = image.min()
         img_max = image.max()
         
-        # Avoid division by zero for completely flat images
         if img_max - img_min < 1e-6:
             return np.zeros_like(image)
             
-        # Min-max scale to [0, 1]
         img_normalized = (image - img_min) / (img_max - img_min)
-        # Scale to [-1, 1]
         img_scaled = (img_normalized * 2.0) - 1.0
         
         return img_scaled
 
     def _get_random_angles(self):
         """
-        Randomly selects an acquisition configuration and generates the corresponding angle array.
+        Dynamically generates a random acquisition geometry for the current sample.
         """
-        acq_config = random.choice(self.acquisition_configs)
-        start_angle, end_angle = acq_config["range"]
-        step = acq_config["step"]
+        min_tilt, max_tilt = self.acq_cfg["tilt_bounds"]
+        current_max_tilt = random.uniform(min_tilt, max_tilt)
         
-        # Generate angles in degrees
-        angles_deg = np.arange(start_angle, end_angle + step, step)
+        min_proj, max_proj = self.acq_cfg["projection_bounds"]
+        num_projections = random.randint(min_proj, max_proj)
+        
+        # Generate linearly spaced angles (e.g., from -53.2° to +53.2°)
+        angles_deg = np.linspace(-current_max_tilt, current_max_tilt, num_projections)
         return angles_deg
 
     def __getitem__(self, idx):
         """
-        Loads the clean slice, pads it to U-Net friendly dimensions, 
-        generates the simulated measurement, applies the mask, 
-        and computes the FBP initialization.
+        Loads the slice, applies random limited-angle forward/back projection, and returns tensors.
         """
-        file_path = self.file_paths[idx]
+        # Determine the actual file to load based on the expanded dataset length
+        actual_file_idx = idx // self.views_per_object
+        file_path = self.file_paths[actual_file_idx]
         
         # 1. Load the clean 2D spatial slice
         with mrcfile.open(file_path, permissive=True) as mrc:
             x_0_np = np.squeeze(mrc.data).astype(np.float32).copy()
             
-        # --- NEW CODE: Pad x_0 to match the target U-Net dimensions (e.g., 368x368) ---
-        target_h, target_w = self.config["data"]["image_dims"]
-        
-        # Calculate padding amounts
+        # 2. Pad x_0 to match the target U-Net dimensions (368x368)
+        target_h, target_w = self.image_dims
         pad_h = max(0, target_h - x_0_np.shape[0])
         pad_w = max(0, target_w - x_0_np.shape[1])
         
@@ -94,7 +106,6 @@ class TomographyDataset(Dataset):
         pad_left = pad_w // 2
         pad_right = pad_w - pad_left
         
-        # Pad with zeros (background) to center the object in the field of view
         x_0_padded = np.pad(
             x_0_np, 
             ((pad_top, pad_bottom), (pad_left, pad_right)), 
@@ -102,19 +113,18 @@ class TomographyDataset(Dataset):
             constant_values=0
         )
         
-        # 2. Select acquisition geometry
+        # 3. Select a randomized acquisition geometry
         angles_deg = self._get_random_angles()
         
-        # 3. Physics Simulation Pipeline (Now using the padded square image)
+        # 4. Physics Simulation Pipeline
         sinogram = self.physics_operator.forward_project(x_0_padded, angles_deg)
-                
         x_fbp_np = self.physics_operator.filtered_back_project(sinogram, angles_deg)
         
-        # 4. Normalization to [-1, 1] for DDPM
+        # 5. Normalization to [-1, 1]
         x_0_normalized = self._normalize_to_ddpm_range(x_0_padded)
         x_fbp_normalized = self._normalize_to_ddpm_range(x_fbp_np)
         
-        # 5. Tensor Conversion [1, H, W]
+        # 6. Tensor Conversion [1, H, W]
         x_0_tensor = torch.from_numpy(x_0_normalized).unsqueeze(0)
         x_fbp_tensor = torch.from_numpy(x_fbp_normalized).unsqueeze(0)
         

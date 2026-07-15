@@ -127,7 +127,7 @@ def run_inference(checkpoint_path, test_file, acquisition_config):
 
 if __name__ == "__main__":
 
-    LATEST_CHECKPOINT = os.path.join(CONFIG["training"]["output_dir"], "unet_checkpoint_epoch_1.pt")
+    LATEST_CHECKPOINT = os.path.join(CONFIG["training"]["output_dir"], "unet_checkpoint_best.pt")
     TEST_FILE = r"C:\Users\Alberto\Desktop\Electron-Tomography-Reconstruction\cDDPM\dataset\test_data\2_squares.mrc"
     ACQUISITION_CONFIG = np.arange(-50, 51, 5)
     
