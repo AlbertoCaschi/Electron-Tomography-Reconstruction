@@ -17,7 +17,7 @@ class TomographyOperator:
             print(f"Warning: Backend '{self.backend}' requested, but falling back to "
                   f"'skimage' for safe PyTorch DataLoader multiprocessing.")
 
-    def forward_project(self, image, angles):
+    def forward_project(self, image, angles): # FBP -> Sinogram
         """
         Computes the Radon transform (forward projection) of a 2D image.
         
@@ -60,7 +60,7 @@ class TomographyOperator:
         
         return masked_sinogram
 
-    def filtered_back_project(self, sinogram, angles):
+    def filtered_back_project(self, sinogram, angles): # Sinogram -> FBP
         """
         Computes the inverse Radon transform (Filtered Back-Projection) to reconstruct
         the 2D spatial slice from a sinogram.

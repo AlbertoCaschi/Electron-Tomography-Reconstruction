@@ -9,6 +9,7 @@ from cDDPM.physics.operators import TomographyOperator
 from cDDPM.models.unet import ConditionalUNet
 from cDDPM.models.diffusion import GaussianDiffusion
 
+
 def normalize_to_ddpm_range(image):
     """Min-max scales an image to [-1, 1]."""
     img_min, img_max = image.min(), image.max()
@@ -23,10 +24,7 @@ def unnormalize_from_ddpm_range(tensor):
     return (tensor + 1.0) / 2.0
 
 def run_inference(checkpoint_path, test_file, acquisition_config):
-    """
-    Runs the inference pipeline to reconstruct a 2D slice from a simulated missing wedge.
-    """
-    # 1. Device Configuration
+
     if torch.cuda.is_available():
         device = torch.device("cuda")
     elif torch.backends.mps.is_available():
@@ -36,13 +34,12 @@ def run_inference(checkpoint_path, test_file, acquisition_config):
         
     print(f"Using device: {device}")
     
-    # 2. Model & Physics Initialization
+    # model
     print("Loading models and physics operators...")
     physics_operator = TomographyOperator(CONFIG["physics"])
     unet = ConditionalUNet(CONFIG).to(device)
     diffusion = GaussianDiffusion(CONFIG).to(device)
-    
-    # Load trained weights
+
     if not os.path.exists(checkpoint_path):
         raise FileNotFoundError(f"Checkpoint not found at {checkpoint_path}")
     
@@ -51,19 +48,18 @@ def run_inference(checkpoint_path, test_file, acquisition_config):
     unet.eval()
     print(f"Successfully loaded checkpoint from epoch {checkpoint.get('epoch', 'N/A')}.")
     
-    # Setup full angles for Ground Truth reconstruction
+
+    # full angles for ground truth reconstruction
     raw_start, raw_end, raw_step = CONFIG["physics"]["raw_angles"]
     full_angles = np.arange(raw_start, raw_end + raw_step, raw_step)
     
-    # 3. Data Processing (Raw Sinogram -> Ground Truth -> Simulated Artifacts)
+    # raw sinogram -> ground truth -> simulated artifacts
     with mrcfile.open(test_file, permissive=True) as mrc:
         raw_sinogram = np.squeeze(mrc.data).astype(np.float32).copy()
-        
-    # Ensure shape is (detector_pixels, angles)
+
     if raw_sinogram.shape[0] == len(full_angles):
         raw_sinogram = raw_sinogram.T
-        
-    # Reconstruct the Ground Truth (Clean x_0)
+
     x_0_np = physics_operator.filtered_back_project(raw_sinogram, full_angles)
         
     target_h, target_w = CONFIG["data"]["image_dims"]
@@ -76,39 +72,35 @@ def run_inference(checkpoint_path, test_file, acquisition_config):
     pad_left = pad_w // 2
     pad_right = pad_w - pad_left
     
-    # Pad the ground truth to 368x368
+    # padding: 362x362 -> 368x368
     x_0_padded = np.pad(
         x_0_np, 
         ((pad_top, pad_bottom), (pad_left, pad_right)), 
-        mode='constant', 
+        mode='constant',
         constant_values=0
     )
     
-    # Run the forward physics to get our conditioning FBP image using the PADDED image
     print("Simulating limited-angle measurement...")
-    sinogram = physics_operator.forward_project(x_0_padded, acquisition_config)
+    sinogram = physics_operator.forward_project(x_0_padded, acquisition_config) # full FBP -> full sinogram
+    x_fbp_np = physics_operator.filtered_back_project(sinogram, acquisition_config) # incomplete sinogram -> FBP with artifacts
     
-    # Back-project the limited angle sinogram to get the missing wedge artifact image
-    x_fbp_np = physics_operator.filtered_back_project(sinogram, acquisition_config)
-    
-    # Normalize to [-1, 1] and convert to PyTorch tensors of shape [1, 1, H, W]
+    # normalize and convert to torch tensors
     x_fbp_tensor = torch.from_numpy(normalize_to_ddpm_range(x_fbp_np)).unsqueeze(0).unsqueeze(0).to(device, dtype=torch.float32)
     
-    # 4. Generative Reconstruction (The Reverse Process)
-    print("Starting diffusion generation. This may take a minute...")
+
+    ## Reconstruction
+    print("Starting diffusion generation (may take a minute)...")
     with torch.no_grad():
-        # Call the p_sample_loop from diffusion.py
         x_reconstructed_tensor = diffusion.p_sample_loop(unet, x_fbp_tensor)
         
-    # 5. Post-processing and Visualization
-    # Move tensors back to CPU and un-normalize for matplotlib
+    # normalize back to visualize
     x_fbp_vis = unnormalize_from_ddpm_range(x_fbp_tensor).squeeze().cpu().numpy()
     x_recon_vis = unnormalize_from_ddpm_range(x_reconstructed_tensor).squeeze().cpu().numpy()
     
-    # Plotting
+
+    ## Plot
     fig, axes = plt.subplots(1, 4, figsize=(20, 5))
     
-    # Use the padded ground truth so the dimensions visually match the reconstructions
     axes[0].imshow(x_0_padded, cmap='gray')
     axes[0].set_title("Ground Truth")
     axes[0].axis('off')
@@ -129,17 +121,9 @@ def run_inference(checkpoint_path, test_file, acquisition_config):
     plt.show()
 
 if __name__ == "__main__":
-    # Point this to your best checkpoint
-    LATEST_CHECKPOINT = os.path.join(CONFIG["training"]["output_dir"], "unet_checkpoint_best.pt")
+
+    CHECKPOINT = os.path.join(CONFIG["training"]["output_dir"], "unet_checkpoint_best.pt")
+    TEST_FILE = r"C:\Users\Alberto\Desktop\Electron-Tomography-Reconstruction\cDDPM\dataset\test_data\circle.mrc"
+    ACQUISITION_CONFIG = np.arange(-50, 51, 5) # specific missing wedge and projection setup
     
-    # Update this path if needed
-    TEST_FILE = r"C:\Users\Alberto\Desktop\Electron-Tomography-Reconstruction\cDDPM\dataset\test_data\2_squares.mrc"
-    
-    # Fixed acquisition array to test inference performance on a specific missing wedge
-    ACQUISITION_CONFIG = np.arange(-50, 51, 5)
-    
-    try:
-        run_inference(LATEST_CHECKPOINT, TEST_FILE, ACQUISITION_CONFIG)
-    except FileNotFoundError as e:
-        print(e)
-        print("Train the model first using 'python train.py' to generate a checkpoint.")
+    run_inference(CHECKPOINT, TEST_FILE, ACQUISITION_CONFIG)

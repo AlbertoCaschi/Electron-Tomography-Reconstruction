@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import math
 
+
 def _extract(a, t, x_shape):
     """
     Extracts values from a 1D tensor 'a' at given indices 't' and reshapes them 
@@ -36,10 +37,6 @@ class GaussianDiffusion(nn.Module):
         beta_start = diff_cfg.get("beta_start", 1e-4)
         beta_end = diff_cfg.get("beta_end", 0.02)
         
-        # Define the beta schedule
-        if schedule == "linear":
-            betas = torch.linspace(beta_start, beta_end, self.num_timesteps, dtype=torch.float32)
-        # Define the beta schedule
         if schedule == "linear":
             betas = torch.linspace(beta_start, beta_end, self.num_timesteps, dtype=torch.float32)
         elif schedule == "cosine":
@@ -58,6 +55,7 @@ class GaussianDiffusion(nn.Module):
             
             # Clip betas to prevent singularities near T
             betas = torch.clip(betas, 0.0001, 0.999)
+
         else:
             raise ValueError(f"Unknown diffusion schedule: {schedule}")
             
@@ -65,8 +63,8 @@ class GaussianDiffusion(nn.Module):
         alphas_cumprod = torch.cumprod(alphas, axis=0)
         alphas_cumprod_prev = torch.cat([torch.tensor([1.0]), alphas_cumprod[:-1]])
         
-        # Register buffers so these tensors are automatically moved to the device (CPU/GPU)
-        # when model.to(device) is called.
+        # save all obtained values
+        # Register buffers: tensors are automatically moved to the device (CPU/GPU)
         self.register_buffer("betas", betas)
         self.register_buffer("alphas_cumprod", alphas_cumprod)
         self.register_buffer("alphas_cumprod_prev", alphas_cumprod_prev)
@@ -78,10 +76,16 @@ class GaussianDiffusion(nn.Module):
         # Calculations for reverse diffusion p(x_{t-1} | x_t)
         self.register_buffer("sqrt_recip_alphas", torch.sqrt(1.0 / alphas))
         
-        # Posterior variance: \tilde{\beta}_t = (1 - \bar{\alpha}_{t-1}) / (1 - \bar{\alpha}_t) * \beta_t
+        # Posterior variance
         posterior_variance = betas * (1.0 - alphas_cumprod_prev) / (1.0 - alphas_cumprod)
         # We clip to 1e-20 to avoid log(0) at t=0
         self.register_buffer("posterior_variance", torch.clamp(posterior_variance, min=1e-20))
+
+        # Coefficients for x_0 clipping in the reverse process
+        self.register_buffer("sqrt_recip_alphas_cumprod", torch.sqrt(1.0 / alphas_cumprod))
+        self.register_buffer("sqrt_recipm1_alphas_cumprod", torch.sqrt((1.0 / alphas_cumprod) - 1.0))
+        self.register_buffer("posterior_mean_coef1", betas * torch.sqrt(alphas_cumprod_prev) / (1.0 - alphas_cumprod))
+        self.register_buffer("posterior_mean_coef2", (1.0 - alphas_cumprod_prev) * torch.sqrt(alphas) / (1.0 - alphas_cumprod))
 
     def q_sample(self, x_0, t, noise=None):
         """
@@ -109,39 +113,34 @@ class GaussianDiffusion(nn.Module):
     @torch.no_grad()
     def p_sample(self, model, x_t, x_fbp, t, t_index):
         """
-        The Reverse Process (Single Step): Denoiser steps from x_t to x_{t-1}.
-        
-        Args:
-            model (nn.Module): The Measurement-Conditioned U-Net.
-            x_t (torch.Tensor): The noisy image at timestep t.
-            x_fbp (torch.Tensor): The deterministic FBP initialization.
-            t (torch.Tensor): A batch of timesteps (containing actual time values).
-            t_index (int): The integer index of the current timestep (used to check if t=0).
-            
-        Returns:
-            torch.Tensor: The less noisy image x_{t-1}.
+        The Reverse Process (Single Step) using intermediate x_0 clipping.
         """
         # Predict the noise using our early fusion U-Net
         noise_pred = model(x_t, x_fbp, t)
         
-        # Extract the necessary coefficients for this timestep
-        betas_t = _extract(self.betas, t, x_t.shape)
-        sqrt_one_minus_alphas_cumprod_t = _extract(self.sqrt_one_minus_alphas_cumprod, t, x_t.shape)
-        sqrt_recip_alphas_t = _extract(self.sqrt_recip_alphas, t, x_t.shape)
+        # Predict the clean image (x_0) from x_t and the predicted noise
+        sqrt_recip_alphas_cumprod_t = _extract(self.sqrt_recip_alphas_cumprod, t, x_t.shape)
+        sqrt_recipm1_alphas_cumprod_t = _extract(self.sqrt_recipm1_alphas_cumprod, t, x_t.shape)
         
-        # Compute the predicted mean: \mu_\theta(x_t, t)
-        model_mean = sqrt_recip_alphas_t * (
-            x_t - betas_t * noise_pred / sqrt_one_minus_alphas_cumprod_t
-        )
+        x_0_pred = sqrt_recip_alphas_cumprod_t * x_t - sqrt_recipm1_alphas_cumprod_t * noise_pred
         
-        # If we are at the very last step (t=0), we do not add noise back in
+        # Clamp the predicted x_0 to strictly remain in grayscale bounds
+        x_0_pred = torch.clamp(x_0_pred, min=-1.0, max=1.0)
+        
+        # Compute the posterior mean using the CLAMPED x_0
+        posterior_mean_coef1_t = _extract(self.posterior_mean_coef1, t, x_t.shape)
+        posterior_mean_coef2_t = _extract(self.posterior_mean_coef2, t, x_t.shape)
+        
+        model_mean = posterior_mean_coef1_t * x_0_pred + posterior_mean_coef2_t * x_t
+        
+        # If we are at the very last step (t=0), return the mean
         if t_index == 0:
             return model_mean
         else:
             posterior_variance_t = _extract(self.posterior_variance, t, x_t.shape)
             noise = torch.randn_like(x_t)
-            # x_{t-1} = \mu_\theta(x_t, t) + \sigma_t * z
             return model_mean + torch.sqrt(posterior_variance_t) * noise
+
 
     @torch.no_grad()
     def p_sample_loop(self, model, x_fbp):

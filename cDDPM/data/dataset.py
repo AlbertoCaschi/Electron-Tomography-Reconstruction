@@ -6,27 +6,23 @@ import torch
 from torch.utils.data import Dataset
 import mrcfile
 
-# Importing the physics operator
 from cDDPM.physics.operators import TomographyOperator
+
 
 class TomographyDataset(Dataset):
     def __init__(self, config, mode="train"):
         self.config = config
         self.mode = mode
         self.image_dims = config["data"]["image_dims"]
-        
-        # Randomized acquisition settings
         self.acq_cfg = config["acquisition"]
         self.views_per_object = self.acq_cfg.get("views_per_object", 10)
-        
-        # Gather all .mrc files from the dataset path
         data_dir = config["data"]["dataset_path"]
         all_files = sorted(glob.glob(os.path.join(data_dir, "*.mrc")))
         
         if len(all_files) == 0:
             raise FileNotFoundError(f"No .mrc files found in {data_dir}. Please check your path.")
             
-        # Apply the train/validation split
+        # train/validation split
         train_samples = config["data"].get("train_samples", 2500)
         
         if self.mode == "train":
@@ -39,10 +35,9 @@ class TomographyDataset(Dataset):
         if len(self.file_paths) == 0:
             raise ValueError(f"No files available for mode '{self.mode}'. Check your dataset folder and split counts.")
             
-        # Initialize the physics operator
+
         self.physics_operator = TomographyOperator(config["physics"])
         
-        # --- NEW: Setup the raw angle array for the perfect reconstruction ---
         raw_start, raw_end, raw_step = config["physics"]["raw_angles"]
         self.full_angles = np.arange(raw_start, raw_end + raw_step, raw_step)
 
@@ -74,18 +69,18 @@ class TomographyDataset(Dataset):
         actual_file_idx = idx // self.views_per_object
         file_path = self.file_paths[actual_file_idx]
         
-        # 1. Load the raw sinogram
+        # load sinogram
         with mrcfile.open(file_path, permissive=True) as mrc:
             raw_sinogram = np.squeeze(mrc.data).astype(np.float32).copy()
             
-        # 2. Ensure shape is (detector_pixels, angles) -> (362, 181)
+        # check correct shape (362, 181)
         if raw_sinogram.shape[0] == len(self.full_angles):
             raw_sinogram = raw_sinogram.T
             
-        # 3. Reconstruct the Ground Truth (Clean x_0)
+        # complete sinogram -> full FBP
         x_0_np = self.physics_operator.filtered_back_project(raw_sinogram, self.full_angles)
             
-        # 4. Pad x_0 to match the target U-Net dimensions (368x368)
+        # padding to match the target U-Net dimensions (368x368)
         target_h, target_w = self.image_dims
         pad_h = max(0, target_h - x_0_np.shape[0])
         pad_w = max(0, target_w - x_0_np.shape[1])
@@ -102,18 +97,18 @@ class TomographyDataset(Dataset):
             constant_values=0
         )
         
-        # 5. Select a randomized acquisition geometry for the missing wedge
+        # select a randomized acquisition geometry for the missing wedge
         angles_deg = self._get_random_angles()
         
-        # 6. Simulate the missing wedge pipeline on the padded Ground Truth
+        # simulate the configuration
         limited_sinogram = self.physics_operator.forward_project(x_0_padded, angles_deg)
         x_fbp_np = self.physics_operator.filtered_back_project(limited_sinogram, angles_deg)
         
-        # 7. Normalization to [-1, 1]
+        # normalize
         x_0_normalized = self._normalize_to_ddpm_range(x_0_padded)
         x_fbp_normalized = self._normalize_to_ddpm_range(x_fbp_np)
         
-        # 8. Tensor Conversion [1, H, W]
+        # tensor conversion [1, H, W]
         x_0_tensor = torch.from_numpy(x_0_normalized).unsqueeze(0)
         x_fbp_tensor = torch.from_numpy(x_fbp_normalized).unsqueeze(0)
         

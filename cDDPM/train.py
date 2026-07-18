@@ -12,7 +12,10 @@ from cDDPM.models.unet import ConditionalUNet
 from cDDPM.models.diffusion import GaussianDiffusion
 from cDDPM.utils.visualization import plot_training_curves, save_reconstruction_progress
 
+
+
 def train_model(config):
+    
     if torch.cuda.is_available():
         device = torch.device("cuda")
     elif torch.backends.mps.is_available():
@@ -20,10 +23,10 @@ def train_model(config):
     else:
         device = torch.device("cpu")
         
-    print(f"--- Initialization ---")
+
     print(f"Using device: {device}")
     
-    # 1. Data Loading
+
     print("Loading datasets...")
     train_dataset = TomographyDataset(config, mode="train")
     val_dataset = TomographyDataset(config, mode="val")
@@ -37,14 +40,14 @@ def train_model(config):
         shuffle=False, num_workers=0, drop_last=False
     )
     
-    # --- NEW: Extract fixed validation sample for visualization ---
-    print("Extracting fixed validation sample for progress tracking...")
-    fixed_x_0, fixed_x_fbp = val_dataset[0]  # Grab the first item
-    fixed_x_0 = fixed_x_0.unsqueeze(0)       # Add batch dimension [1, 1, H, W]
-    fixed_x_fbp = fixed_x_fbp.unsqueeze(0)
-    # --------------------------------------------------------------
     
-    # 2. Model Initialization
+    # the first element of the val set is used to visualize progress every epoch
+    print("Extracting fixed validation sample for progress tracking...")
+    fixed_x_0, fixed_x_fbp = val_dataset[0]
+    fixed_x_0 = fixed_x_0.unsqueeze(0)
+    fixed_x_fbp = fixed_x_fbp.unsqueeze(0)
+
+    # model
     unet = ConditionalUNet(config).to(device)
     diffusion = GaussianDiffusion(config).to(device)
     
@@ -55,14 +58,16 @@ def train_model(config):
     warmup_epochs = config["training"].get("warmup_epochs", 5)
     min_lr = config["training"].get("min_lr", 1e-6)
     
-    # --- NEW: Setup LR Scheduler ---
-    # 1. Warmup from 10% of base_lr to 100% of base_lr over 'warmup_epochs'
+    # LR scheduler
+    # from 10% of base_lr to 100% of base_lr over the warmup epochs
     warmup_scheduler = LinearLR(optimizer, start_factor=0.1, total_iters=warmup_epochs)
-    # 2. Cosine decay from base_lr down to 'min_lr' over the remaining epochs
+    # cosine decay from base_lr down to min_lr over the remaining epochs
     cosine_scheduler = CosineAnnealingLR(optimizer, T_max=(epochs - warmup_epochs), eta_min=min_lr)
-    # 3. Chain them together
-    scheduler = SequentialLR(optimizer, schedulers=[warmup_scheduler, cosine_scheduler], milestones=[warmup_epochs])
-    # -------------------------------
+    scheduler = SequentialLR(
+        optimizer,
+        schedulers=[warmup_scheduler, cosine_scheduler], # chain schedulers
+        milestones=[warmup_epochs] # switch
+        )
 
 
     save_freq = config["training"]["save_frequency"]
@@ -72,7 +77,7 @@ def train_model(config):
     num_timesteps = config["diffusion"]["num_timesteps"]
     resume_path = config["training"].get("resume_checkpoint", None)
     
-    # 3. Resume Logic
+    # Resume Logic
     start_epoch = 1
     best_val_loss = float('inf')
     
@@ -83,10 +88,8 @@ def train_model(config):
         unet.load_state_dict(checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 
-        # --- NEW: Load Scheduler State ---
         if 'scheduler_state_dict' in checkpoint:
             scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
-        # ---------------------------------
 
         start_epoch = checkpoint['epoch'] + 1
         
@@ -97,7 +100,8 @@ def train_model(config):
             
         print(f"Resuming at Epoch {start_epoch}. Current Best Val Loss: {best_val_loss:.6f}")
     
-    # 4. CSV Setup
+
+    # CSV Setup
     csv_log_path = os.path.join(log_dir, "training_log.csv")
     if start_epoch == 1 or not os.path.exists(csv_log_path):
         with open(csv_log_path, mode='w', newline='') as f:
@@ -111,22 +115,22 @@ def train_model(config):
     current_val_loss = float('inf') 
 
     try:
-        # 5. The Epoch Loop
+        # epoch Loop
         for epoch in range(start_epoch, epochs + 1):
             current_epoch = epoch
             
             accum_steps = config["training"].get("gradient_accumulation_steps", 1)
             
-            # --- TRAINING PHASE ---
+            ## TRAIN ##
+
             unet.train()
             train_loss = 0.0
             
-            # Note: Add enumerate to your tqdm wrapper so we have the batch index
             train_progress = tqdm(enumerate(train_loader), total=len(train_loader), desc=f"Epoch {epoch}/{epochs} [Train]", leave=False)
             
-            optimizer.zero_grad() # Move zero_grad OUTSIDE the batch loop
+            optimizer.zero_grad()
             
-            for batch_idx, (x_0, x_fbp) in train_progress:
+            for batch_idx, (x_0, x_fbp) in train_progress: # x_0 -> ground truth
                 x_0 = x_0.to(device, dtype=torch.float32)
                 x_fbp = x_fbp.to(device, dtype=torch.float32)
                 
@@ -136,24 +140,28 @@ def train_model(config):
                 
                 noise_pred = unet(x_t, x_fbp, t)
                 
-                # Calculate loss and scale it by the accumulation steps
                 loss = criterion(noise_pred, noise)
                 loss = loss / accum_steps
                 
                 loss.backward()
                 
-                # Only step the optimizer every N steps
+                # step optimizer when a complete batch is done (depending on accumulation steps)
                 if ((batch_idx + 1) % accum_steps == 0) or ((batch_idx + 1) == len(train_loader)):
+
+                    if config["training"]["use_gradient_clipping"]:
+                        torch.nn.utils.clip_grad_norm_(unet.parameters(), max_norm=1.0)
+
                     optimizer.step()
                     optimizer.zero_grad()
                 
-                # Un-scale the loss for accurate logging
                 train_loss += (loss.item() * accum_steps)
                 train_progress.set_postfix({"loss": f"{(loss.item() * accum_steps):.4f}"})
                 
             avg_train_loss = train_loss / len(train_loader)
             
-            # --- VALIDATION PHASE ---
+
+            ## VALIDATION ##
+
             unet.eval()
             val_loss = 0.0
             val_progress = tqdm(val_loader, desc=f"Epoch {epoch}/{epochs} [Val]", leave=False)
@@ -174,12 +182,12 @@ def train_model(config):
             current_val_loss = val_loss / len(val_loader)
             print(f"Epoch {epoch}/{epochs} | Train Loss: {avg_train_loss:.6f} | Val Loss: {current_val_loss:.6f}")
             
-            # --- LOGGING TO CSV ---
+            # CSV logging
             with open(csv_log_path, mode='a', newline='') as f:
                 writer = csv.writer(f)
                 writer.writerow([epoch, avg_train_loss, current_val_loss])
             
-            # --- CHECKPOINTING ---
+            # create checkpoint
             checkpoint_data = {
                 'epoch': epoch,
                 'model_state_dict': unet.state_dict(),
@@ -192,31 +200,32 @@ def train_model(config):
             
             if epoch % save_freq == 0 or epoch == epochs:
                 torch.save(checkpoint_data, os.path.join(output_dir, f"unet_checkpoint_epoch_{epoch}.pt"))
-                
+            
             if current_val_loss < best_val_loss:
                 best_val_loss = current_val_loss
                 torch.save(checkpoint_data, os.path.join(output_dir, "unet_checkpoint_best.pt"))
                 print(f"--> New best model saved! (Val Loss: {best_val_loss:.6f})")
 
-            # --- PROGRESS VISUALIZATION ---
+            # generate visualization
             if epoch % vis_freq == 0 or epoch == epochs:
                 save_reconstruction_progress(
                     unet, diffusion, fixed_x_0, fixed_x_fbp, 
                     epoch, log_dir, device
                 )
 
-            # --- STEP SCHEDULER ---
-            # Print the current learning rate to the console for tracking
+
             current_lr = scheduler.get_last_lr()[0]
             print(f"--> Current Learning Rate: {current_lr:.6f}")
             
             scheduler.step()
 
+
     except KeyboardInterrupt:
         print("\n\n[Interrupt] Training stopped by user (Ctrl+C).")
         interrupted_path = os.path.join(output_dir, "unet_checkpoint_interrupted.pt")
+        completed_epoch = current_epoch-1
         torch.save({
-            'epoch': current_epoch,
+            'epoch': completed_epoch,
             'model_state_dict': unet.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
             'val_loss': current_val_loss,
@@ -226,6 +235,6 @@ def train_model(config):
         print("To resume, update 'resume_checkpoint' in config.py with this path.")
         
     finally:
-        print("\n=== Training Complete / Halted ===")
+        print("\nTraining Complete / Halted")
         print("Generating visualization...")
         plot_training_curves(csv_log_path)

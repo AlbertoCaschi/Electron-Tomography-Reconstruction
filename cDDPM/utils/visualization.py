@@ -34,7 +34,7 @@ def plot_training_curves(csv_path):
         print("\n[Warning] No valid data found in the CSV to plot.")
         return
 
-    # Generate the plot
+    # Plot
     plt.figure(figsize=(10, 6))
     plt.plot(epochs, train_losses, label='Train Loss', color='blue', linewidth=2, marker='o', markersize=4)
     plt.plot(epochs, val_losses, label='Validation Loss', color='orange', linewidth=2, marker='o', markersize=4)
@@ -46,13 +46,13 @@ def plot_training_curves(csv_path):
     plt.grid(True, linestyle='--', alpha=0.7)
     plt.tight_layout()
 
-    # Save the plot in the same directory as the CSV
+    # save
     plot_path = csv_path.replace('.csv', '.png')
     plt.savefig(plot_path, dpi=300)
     print(f"\n--> Loss plot saved to: {plot_path}")
     
-    # Display the plot to the user
-    plt.show()
+    # display
+    # plt.show()
 
 
 def unnormalize_from_ddpm_range(tensor):
@@ -66,20 +66,18 @@ def save_reconstruction_progress(unet, diffusion, fixed_x_0, fixed_x_fbp, epoch,
     Runs the reverse diffusion process on a fixed validation sample and saves the plot.
     """
     unet.eval()
-    
-    # Move tensors to the active device
+
     x_0 = fixed_x_0.to(device, dtype=torch.float32)
     x_fbp = fixed_x_fbp.to(device, dtype=torch.float32)
     
-    # Generate the reconstruction from pure noise conditioned on the FBP
+    # Generation
     x_recon = diffusion.p_sample_loop(unet, x_fbp)
     
-    # Un-normalize and move to CPU for plotting
     x_0_vis = unnormalize_from_ddpm_range(x_0).squeeze().cpu().numpy()
     x_fbp_vis = unnormalize_from_ddpm_range(x_fbp).squeeze().cpu().numpy()
     x_recon_vis = unnormalize_from_ddpm_range(x_recon).squeeze().cpu().numpy()
     
-    # Plotting
+    # Plot
     fig, axes = plt.subplots(1, 3, figsize=(15, 5))
     
     axes[0].imshow(x_0_vis, cmap='gray')
@@ -96,7 +94,6 @@ def save_reconstruction_progress(unet, diffusion, fixed_x_0, fixed_x_fbp, epoch,
     
     plt.tight_layout()
     
-    # Ensure directory exists and save
     vis_dir = os.path.join(log_dir, "progress_images")
     os.makedirs(vis_dir, exist_ok=True)
     
@@ -106,6 +103,5 @@ def save_reconstruction_progress(unet, diffusion, fixed_x_0, fixed_x_fbp, epoch,
 
 
 if __name__ == "__main__":
-    # If run as a standalone script, target the default log location
     default_log_path = "./cDDPM/logs/training_log.csv"
     plot_training_curves(default_log_path)

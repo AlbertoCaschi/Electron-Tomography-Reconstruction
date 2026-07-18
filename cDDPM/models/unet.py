@@ -20,15 +20,13 @@ class ConditionalUNet(nn.Module):
         
         # Calculate the exact channel dimensions for each block based on the multipliers
         block_out_channels = tuple([base_channels * m for m in channel_multipliers])
-        
-        # Define the downsampling and upsampling blocks. 
+         
         # For a 4-level U-Net, we inject spatial attention at the lower resolutions (e.g., 3rd level)
         # to help the model learn global structural coherence.
-        # Define the downsampling and upsampling blocks. 
         down_block_types = (
             "DownBlock2D",         # Level 1: 368x368 -> 184x184
             "DownBlock2D",         # Level 2: 184x184 -> 92x92
-            "DownBlock2D",         # Level 3: 92x92   -> 46x46 (No attention here anymore)
+            "DownBlock2D",         # Level 3: 92x92   -> 46x46
             "AttnDownBlock2D",     # Level 4: 46x46 (Attention applied safely here)
         )
         
@@ -69,8 +67,7 @@ class ConditionalUNet(nn.Module):
                 f"got {x_t.shape[1]} and {x_fbp.shape[1]} channels instead."
             )
             
-        # EARLY FUSION: Concatenate the noisy state and the deterministic FBP condition
-        # along the channel dimension (dim=1). 
+        # Concatenate the noisy state and the deterministic FBP condition along the channel dimension (dim=1). 
         # Resulting shape: [Batch, 2, Height, Width]
         fused_input = torch.cat([x_t, x_fbp], dim=1)
         
