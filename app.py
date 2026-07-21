@@ -740,8 +740,8 @@ with tab2:
                     """, unsafe_allow_html=True)
                     
                     cddpm_inference(
-                        model = cddpm_model,
-                        input_mrc_path = mrc_file_path,
+                        checkpoint_path = cddpm_model,
+                        test_file = mrc_file_path,
                         output_image_path = output_image_path,
                         output_fbp_path = output_fbp_path,
                         acquisition_config = acquisition_config
