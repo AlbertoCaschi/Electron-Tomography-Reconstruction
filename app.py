@@ -142,14 +142,28 @@ st.markdown("""
     div[data-testid="stRadio"] > label { font-weight: 600; color: #94A3B8; }
     div[data-testid="stSelectbox"] > label { font-weight: 600; color: #94A3B8; }
     
-    /* Optional: Styling adjustments to make the tabs match your theme */
+    /* 1. Base Tab Styling (Make text bigger) */
     div[data-testid="stTabs"] button {
         color: #A0AEC0;
         font-weight: 600;
-        font-size: 1.1rem;
+        font-size: 1.35rem; /* <-- Increased size (adjust this value as needed) */
+        transition: color 0.3s ease;
     }
+
+    /* 2. Hover State (Change text color when mouse is over it) */
+    div[data-testid="stTabs"] button:hover {
+        color: #ffffff; /* <-- Brilliant white on hover */
+    }
+
+    /* 3. Selected Tab Text Color */
     div[data-testid="stTabs"] button[aria-selected="true"] {
-        color: #00f2fe;
+        color: #00f2fe; /* <-- Neon blue for the active text */
+    }
+
+    /* 4. Selected Tab Underline Color */
+    div[data-baseweb="tab-highlight"] {
+        background-color: #00f2fe; /* <-- Neon blue for the underline */
+        height: 3px; /* Optional: makes the underline slightly thicker */
     }
     </style>
 """, unsafe_allow_html=True)
