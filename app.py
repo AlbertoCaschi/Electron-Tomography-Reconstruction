@@ -163,12 +163,12 @@ st.markdown("""
     /* 4. Selected Tab Text Color */
     div[data-testid="stTabs"] button[aria-selected="true"],
     div[data-testid="stTabs"] button[aria-selected="true"] p {
-        color: #00f2fe !important; /* Neon blue for the active text */
+        color: #65b9f8 !important; /* Neon blue for the active text */
     }
 
     /* 5. Selected Tab Underline Color */
     div[data-baseweb="tab-highlight"] {
-        background-color: #00f2fe !important; /* Neon blue for the underline */
+        background-color: #65b9f8 !important; /* Neon blue for the underline */
         height: 3px !important; /* Slightly thicker underline */
     }
     </style>
@@ -266,7 +266,7 @@ with tab1:
     with col_intro:
         st.markdown("""
             <div class="glass-card">
-                <div class="section-header">Project Overview</div>
+                <div class="section-header">Method Overview</div>
                 <p style="color: #CBD5E1; line-height: 1.7; text-align: justify; text-justify: inter-word;">
                     This method addresses the electron-tomography missing wedge and projections by training a VAE-based sinogram inpainting model to infer absent sinogram data. Using 2500 synthetic samples with noise and augmentations, the network learns physically consistent projections that improve FBP reconstruction, enabling 2D slice recovery from severely incomplete inputs.
                 </p>
