@@ -141,12 +141,21 @@ st.markdown("""
     
     div[data-testid="stRadio"] > label { font-weight: 600; color: #94A3B8; }
     div[data-testid="stSelectbox"] > label { font-weight: 600; color: #94A3B8; }
+    
+    /* Optional: Styling adjustments to make the tabs match your theme */
+    div[data-testid="stTabs"] button {
+        color: #A0AEC0;
+        font-weight: 600;
+        font-size: 1.1rem;
+    }
+    div[data-testid="stTabs"] button[aria-selected="true"] {
+        color: #00f2fe;
+    }
     </style>
 """, unsafe_allow_html=True)
 
 
 # Model loading into cache
-
 @st.cache_resource(show_spinner=False)
 def load_private_model():
     """Fetches the private PyTorch model bypassing the HF library."""
@@ -215,7 +224,6 @@ model = load_private_model()
 ## APP
 
 # Title
-
 st.markdown("""
     <div class="title-wrapper">
         <div class="main-title">AI-Powered Electron Tomography Reconstruction</div>
@@ -228,251 +236,258 @@ st.markdown(
 
 st.divider()
 
+# --- NEW NAVIGATION BAR ---
+tab1, tab2 = st.tabs(["Selection 1", "Selection 2"])
 
-# Overview
+with tab1:
+    # Overview
+    col_intro, col_arch = st.columns(2, gap="large")
 
-col_intro, col_arch = st.columns(2, gap="large")
-
-with col_intro:
-    st.markdown("""
-        <div class="glass-card">
-            <div class="section-header">Project Overview</div>
-            <p style="color: #CBD5E1; line-height: 1.7; text-align: justify; text-justify: inter-word;">
-                This method addresses the electron-tomography missing wedge and projections by training a VAE-based sinogram inpainting model to infer absent sinogram data. Using 2500 synthetic samples with noise and augmentations, the network learns physically consistent projections that improve FBP reconstruction, enabling 2D slice recovery from severely incomplete inputs.
-            </p>
-            <div class="section-header" style="margin-top: 1.5rem;">Model Architecture</div>
-            <p style="color: #CBD5E1; line-height: 1.7; text-align: justify; text-justify: inter-word;">
-                This model is a <strong>Variational Autoencoder</strong> built on a pre-trained <strong>ResNet-18</strong> that compresses each sinogram into a 64-number representation (latent vector). A decoder then expands it back using smooth upsampling steps to avoid visual artifacts. Training uses smart regularization so the network learns real geometric patterns instead of memorizing examples.
-            </p>
-            <p style="color: #B5C3D2; line-height: 1.7; font-size: 0.7rem;">
-                Check the slides for additional information.
-            </p>
-        </div>
-    """, unsafe_allow_html=True)
-
-with col_arch:
-    st.markdown("<div style='margin-top: 3.5rem;'></div>", unsafe_allow_html=True)
-    try:
-        arch_image = Image.open("assets/architecture.png")
-        st.image(arch_image, caption="VAE Network pipeline with ResNet-18 Feature Extractor.", use_container_width=True)
-    except FileNotFoundError:
-        st.info("**Architecture diagram placeholder:** Place 'architecture.png' in your 'assets/' folder to display the network pipeline here.")
-
-st.divider()
-
-
-
-## MODEL TESTING PART
-
-
-col_config, col_exec = st.columns(2, gap="large")
-
-# LEFT COLUMN: Configuration
-
-with col_config:
-    st.markdown('<div class="section-header">Simulation Configuration</div>', unsafe_allow_html=True)
-
-    input_mode = st.radio(
-        "Choose sinogram source data:",
-        ["Use a preloaded example file", "Upload custom .mrc file"],
-        horizontal=True
-    )
-
-    if input_mode == "Upload custom .mrc file":
+    with col_intro:
         st.markdown("""
-            <div class="info-box">
-                <strong>Please note:</strong>
-                <ul>
-                <li>Upload a full sinogram (-90° to +90°, 1° steps). The app will simulate the missing wedge and projections you choose below.</li>
-                <li>Input sinograms must have the following size: <strong>[362, 181]</strong>.</li>
-                </ul>
+            <div class="glass-card">
+                <div class="section-header">Project Overview</div>
+                <p style="color: #CBD5E1; line-height: 1.7; text-align: justify; text-justify: inter-word;">
+                    This method addresses the electron-tomography missing wedge and projections by training a VAE-based sinogram inpainting model to infer absent sinogram data. Using 2500 synthetic samples with noise and augmentations, the network learns physically consistent projections that improve FBP reconstruction, enabling 2D slice recovery from severely incomplete inputs.
+                </p>
+                <div class="section-header" style="margin-top: 1.5rem;">Model Architecture</div>
+                <p style="color: #CBD5E1; line-height: 1.7; text-align: justify; text-justify: inter-word;">
+                    This model is a <strong>Variational Autoencoder</strong> built on a pre-trained <strong>ResNet-18</strong> that compresses each sinogram into a 64-number representation (latent vector). A decoder then expands it back using smooth upsampling steps to avoid visual artifacts. Training uses smart regularization so the network learns real geometric patterns instead of memorizing examples.
+                </p>
+                <p style="color: #B5C3D2; line-height: 1.7; font-size: 0.7rem;">
+                    Check the slides for additional information.
+                </p>
             </div>
         """, unsafe_allow_html=True)
 
-    mrc_file_path = None
+    with col_arch:
+        st.markdown("<div style='margin-top: 3.5rem;'></div>", unsafe_allow_html=True)
+        try:
+            arch_image = Image.open("assets/architecture.png")
+            st.image(arch_image, caption="VAE Network pipeline with ResNet-18 Feature Extractor.", use_container_width=True)
+        except FileNotFoundError:
+            st.info("**Architecture diagram placeholder:** Place 'architecture.png' in your 'assets/' folder to display the network pipeline here.")
 
-    if input_mode == "Use a preloaded example file":
-        example_choice = st.selectbox(
-            "Select an example sinogram:",
+    st.divider()
+
+    ## MODEL TESTING PART
+    col_config, col_exec = st.columns(2, gap="large")
+
+    # LEFT COLUMN: Configuration
+    with col_config:
+        st.markdown('<div class="section-header">Simulation Configuration</div>', unsafe_allow_html=True)
+
+        input_mode = st.radio(
+            "Choose sinogram source data:",
+            ["Use a preloaded example file", "Upload custom .mrc file"],
+            horizontal=True
+        )
+
+        if input_mode == "Upload custom .mrc file":
+            st.markdown("""
+                <div class="info-box">
+                    <strong>Please note:</strong>
+                    <ul>
+                    <li>Upload a full sinogram (-90° to +90°, 1° steps). The app will simulate the missing wedge and projections you choose below.</li>
+                    <li>Input sinograms must have the following size: <strong>[362, 181]</strong>.</li>
+                    </ul>
+                </div>
+            """, unsafe_allow_html=True)
+
+        mrc_file_path = None
+
+        if input_mode == "Use a preloaded example file":
+            example_choice = st.selectbox(
+                "Select an example sinogram:",
+                [
+                    "Rectangle",
+                    "Oval 1",
+                    "Oval 2",
+                    "Rectangle + Oval",
+                    "Circle",
+                    "2 Squares",
+                    "Catalyst"
+                ]
+            )
+
+            if "Rectangle" in example_choice and "Oval" in example_choice:
+                filename = "rect_oval.mrc"
+            elif "Oval 1" in example_choice:
+                filename = "oval1.mrc"
+            elif "Oval 2" in example_choice:
+                filename = "oval2.mrc"
+            elif "Rectangle" in example_choice:
+                filename = "rectangle.mrc"
+            elif "Circle" in example_choice:
+                filename = "circle.mrc"
+            elif "2 Squares" in example_choice:
+                filename = "2_squares.mrc"
+            elif "Catalyst" in example_choice:
+                filename = "catalyst.mrc"
+
+            mrc_file_path = os.path.join("assets", filename)
+            
+            if os.path.exists(mrc_file_path):
+                st.success(f"**{example_choice}** initialized and ready.")
+            else:
+                st.warning(f"Placeholder: upload '{filename}' to your repository's 'assets/' folder.")
+                mrc_file_path = None
+
+        else:
+            uploaded_file = st.file_uploader("Upload an experimental .mrc sinogram", type=["mrc"])
+            if uploaded_file is not None:
+                filename = "uploaded.mrc"
+                mrc_file_path = os.path.join("assets", filename)
+                os.makedirs("assets", exist_ok=True) 
+                with open(mrc_file_path, "wb") as f:
+                    f.write(uploaded_file.getbuffer())
+                st.success("Custom .mrc file uploaded and parsed successfully.")
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        config_choice = st.selectbox(
+            "Select missing wedge and projection simulation:",
             [
-                "Rectangle",
-                "Oval 1",
-                "Oval 2",
-                "Rectangle + Oval",
-                "Circle",
-                "2 Squares",
-                "Catalyst"
+                "±50° Wedge (5° Step)",
+                "±50° Wedge (10° Step)",
+                "±50° Wedge (20° Step)",
+                "±40° Wedge (5° Step)",
+                "±40° Wedge (10° Step)",
+                "±40° Wedge (20° Step)"
             ]
         )
 
-        if "Rectangle" in example_choice and "Oval" in example_choice:
-            filename = "rect_oval.mrc"
-        elif "Oval 1" in example_choice:
-            filename = "oval1.mrc"
-        elif "Oval 2" in example_choice:
-            filename = "oval2.mrc"
-        elif "Rectangle" in example_choice:
-            filename = "rectangle.mrc"
-        elif "Circle" in example_choice:
-            filename = "circle.mrc"
-        elif "2 Squares" in example_choice:
-            filename = "2_squares.mrc"
-        elif "Catalyst" in example_choice:
-            filename = "catalyst.mrc"
+        config_map = {
+            "±50° Wedge (5° Step)": {'range': (-50, 50), 'step': 5},
+            "±50° Wedge (10° Step)": {'range': (-50, 50), 'step': 10},
+            "±50° Wedge (20° Step)": {'range': (-50, 50), 'step': 20},
+            "±40° Wedge (5° Step)": {'range': (-40, 40), 'step': 5},
+            "±40° Wedge (10° Step)": {'range': (-40, 40), 'step': 10},
+            "±40° Wedge (20° Step)": {'range': (-40, 40), 'step': 20}
+        }
+        acquisition_config = config_map[config_choice]
 
-        mrc_file_path = os.path.join("assets", filename)
+
+    # --- RIGHT COLUMN: Inference and results ---
+    with col_exec:
+        st.markdown('<div class="section-header">Inference & Results</div>', unsafe_allow_html=True)
         
-        if os.path.exists(mrc_file_path):
-            st.success(f"**{example_choice}** initialized and ready.")
-        else:
-            st.warning(f"Placeholder: upload '{filename}' to your repository's 'assets/' folder.")
-            mrc_file_path = None
-
-    else:
-        uploaded_file = st.file_uploader("Upload an experimental .mrc sinogram", type=["mrc"])
-        if uploaded_file is not None:
-            filename = "uploaded.mrc"
-            mrc_file_path = os.path.join("assets", filename)
-            os.makedirs("assets", exist_ok=True) 
-            with open(mrc_file_path, "wb") as f:
-                f.write(uploaded_file.getbuffer())
-            st.success("Custom .mrc file uploaded and parsed successfully.")
-
-    st.markdown("<br>", unsafe_allow_html=True)
-    
-    config_choice = st.selectbox(
-        "Select missing wedge and projection simulation:",
-        [
-            "±50° Wedge (5° Step)",
-            "±50° Wedge (10° Step)",
-            "±50° Wedge (20° Step)",
-            "±40° Wedge (5° Step)",
-            "±40° Wedge (10° Step)",
-            "±40° Wedge (20° Step)"
-        ]
-    )
-
-    config_map = {
-        "±50° Wedge (5° Step)": {'range': (-50, 50), 'step': 5},
-        "±50° Wedge (10° Step)": {'range': (-50, 50), 'step': 10},
-        "±50° Wedge (20° Step)": {'range': (-50, 50), 'step': 20},
-        "±40° Wedge (5° Step)": {'range': (-40, 40), 'step': 5},
-        "±40° Wedge (10° Step)": {'range': (-40, 40), 'step': 10},
-        "±40° Wedge (20° Step)": {'range': (-40, 40), 'step': 20}
-    }
-    acquisition_config = config_map[config_choice]
-
-
-# --- RIGHT COLUMN: Inference and results ---
-with col_exec:
-    st.markdown('<div class="section-header">Inference & Results</div>', unsafe_allow_html=True)
-    
-    if mrc_file_path and os.path.exists(mrc_file_path):
-        
-        with st.container():
-            st.markdown("<div style='padding-top: 10px;'></div>", unsafe_allow_html=True)
-            run_btn = st.button("🚀 Run Tomographic Reconstruction", use_container_width=True, type="primary")
+        if mrc_file_path and os.path.exists(mrc_file_path):
             
-            if run_btn:
-                output_image_path = os.path.join("assets", "full_reconstruction_result.png")
-                output_fbp_path = os.path.join("assets", "fbp_reconstruction_result.png")
+            with st.container():
+                st.markdown("<div style='padding-top: 10px;'></div>", unsafe_allow_html=True)
+                run_btn = st.button("🚀 Run Tomographic Reconstruction", use_container_width=True, type="primary")
                 
-                loading_placeholder = st.empty()
+                if run_btn:
+                    output_image_path = os.path.join("assets", "full_reconstruction_result.png")
+                    output_fbp_path = os.path.join("assets", "fbp_reconstruction_result.png")
+                    
+                    loading_placeholder = st.empty()
 
-                loading_placeholder.markdown("""
-                    <style>
-                    .custom-loader-container {
-                        display: flex;
-                        flex-direction: column;
-                        align-items: center;
-                        justify-content: center;
-                        padding: 3rem;
-                        background: rgba(17, 25, 40, 0.4);
-                        border-radius: 12px;
-                        border: 1px solid rgba(0, 242, 254, 0.2);
-                        margin: 2rem 0;
-                    }
-                    
-                    .scanner-track {
-                        width: 80%;
-                        height: 4px;
-                        background: rgba(255, 255, 255, 0.1);
-                        border-radius: 4px;
-                        position: relative;
-                        overflow: hidden;
-                        margin-top: 1.5rem;
-                    }
-                    
-                    /* The moving glowing beam */
-                    .scanner-beam {
-                        position: absolute;
-                        top: 0;
-                        left: -50%;
-                        width: 50%;
-                        height: 100%;
-                        background: linear-gradient(90deg, transparent, #00f2fe, #4facfe, transparent);
-                        animation: scan 1.5s infinite linear;
-                    }
-                    
-                    .loader-text {
-                        color: #00f2fe;
-                        font-weight: 600;
-                        font-size: 1.1rem;
-                        letter-spacing: 2px;
-                        margin-top: 1rem;
-                        animation: pulseText 1.5s infinite ease-in-out;
-                    }
-                    
-                    /* Animations */
-                    @keyframes scan {
-                        0% { left: -50%; }
-                        100% { left: 100%; }
-                    }
-                    
-                    @keyframes pulseText {
-                        0%, 100% { opacity: 0.5; text-shadow: 0 0 0 transparent; }
-                        50% { opacity: 1; text-shadow: 0 0 10px rgba(0, 242, 254, 0.6); }
-                    }
-                    </style>
-                    
-                    <div class="custom-loader-container">
-                        <div style="font-size: 2rem; animation: pulseText 2s infinite;">RECONSTRUCTING SINOGRAM</div>
-                        <div class="loader-text">Please wait...</div>
-                        <div class="scanner-track">
-                            <div class="scanner-beam"></div>
+                    loading_placeholder.markdown("""
+                        <style>
+                        .custom-loader-container {
+                            display: flex;
+                            flex-direction: column;
+                            align-items: center;
+                            justify-content: center;
+                            padding: 3rem;
+                            background: rgba(17, 25, 40, 0.4);
+                            border-radius: 12px;
+                            border: 1px solid rgba(0, 242, 254, 0.2);
+                            margin: 2rem 0;
+                        }
+                        
+                        .scanner-track {
+                            width: 80%;
+                            height: 4px;
+                            background: rgba(255, 255, 255, 0.1);
+                            border-radius: 4px;
+                            position: relative;
+                            overflow: hidden;
+                            margin-top: 1.5rem;
+                        }
+                        
+                        /* The moving glowing beam */
+                        .scanner-beam {
+                            position: absolute;
+                            top: 0;
+                            left: -50%;
+                            width: 50%;
+                            height: 100%;
+                            background: linear-gradient(90deg, transparent, #00f2fe, #4facfe, transparent);
+                            animation: scan 1.5s infinite linear;
+                        }
+                        
+                        .loader-text {
+                            color: #00f2fe;
+                            font-weight: 600;
+                            font-size: 1.1rem;
+                            letter-spacing: 2px;
+                            margin-top: 1rem;
+                            animation: pulseText 1.5s infinite ease-in-out;
+                        }
+                        
+                        /* Animations */
+                        @keyframes scan {
+                            0% { left: -50%; }
+                            100% { left: 100%; }
+                        }
+                        
+                        @keyframes pulseText {
+                            0%, 100% { opacity: 0.5; text-shadow: 0 0 0 transparent; }
+                            50% { opacity: 1; text-shadow: 0 0 10px rgba(0, 242, 254, 0.6); }
+                        }
+                        </style>
+                        
+                        <div class="custom-loader-container">
+                            <div style="font-size: 2rem; animation: pulseText 2s infinite;">RECONSTRUCTING SINOGRAM</div>
+                            <div class="loader-text">Please wait...</div>
+                            <div class="scanner-track">
+                                <div class="scanner-beam"></div>
+                            </div>
                         </div>
-                    </div>
-                """, unsafe_allow_html=True)
-                
-                run_streamlit_inference(
-                    model = model,
-                    input_mrc_path = mrc_file_path,
-                    output_image_path = output_image_path,
-                    output_fbp_path = output_fbp_path,
-                    is_complete=True,
-                    acquisition_config = acquisition_config,
-                    threshold = 0.05
-                )
-                
-                loading_placeholder.empty()
-                
-                if os.path.exists(output_image_path):
-                    st.success("Reconstruction complete!")
+                    """, unsafe_allow_html=True)
                     
-                    result_img = Image.open(output_image_path)
-                    st.image(result_img, caption="Reconstruction output: input sinogram and neural networks solution", use_container_width=False)
+                    run_streamlit_inference(
+                        model = model,
+                        input_mrc_path = mrc_file_path,
+                        output_image_path = output_image_path,
+                        output_fbp_path = output_fbp_path,
+                        is_complete=True,
+                        acquisition_config = acquisition_config,
+                        threshold = 0.05
+                    )
                     
-                    with open(output_fbp_path, "rb") as file:
-                        st.download_button(
-                            label="📥  Download FBP reconstruction (PNG)",
-                            data=file,
-                            file_name=f"{filename[:-4]}_reconstruction_result.png",
-                            mime="image/png",
-                            use_container_width=True
-                        )
+                    loading_placeholder.empty()
+                    
+                    if os.path.exists(output_image_path):
+                        st.success("Reconstruction complete!")
+                        
+                        result_img = Image.open(output_image_path)
+                        st.image(result_img, caption="Reconstruction output: input sinogram and neural networks solution", use_container_width=False)
+                        
+                        with open(output_fbp_path, "rb") as file:
+                            st.download_button(
+                                label="📥  Download FBP reconstruction (PNG)",
+                                data=file,
+                                file_name=f"{filename[:-4]}_reconstruction_result.png",
+                                mime="image/png",
+                                use_container_width=True
+                            )
+                    else:
+                        st.error("Inference executed, but output image could not be located.")
                 else:
-                    st.error("Inference executed, but output image could not be located.")
-            else:
-                st.info("System ready. Configure parameters on the left and initialize reconstruction.")
-    else:
-        st.warning("Please select or upload a valid .mrc file.")
+                    st.info("System ready. Configure parameters on the left and initialize reconstruction.")
+        else:
+            st.warning("Please select or upload a valid .mrc file.")
+
+with tab2:
+    st.markdown("""
+        <div class="glass-card">
+            <div class="section-header">Future Module or Selection 2 Content</div>
+            <p style="color: #CBD5E1; line-height: 1.7;">
+                This tab is currently empty and waiting for your new content!
+            </p>
+        </div>
+    """, unsafe_allow_html=True)
