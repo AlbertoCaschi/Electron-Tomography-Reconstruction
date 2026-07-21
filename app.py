@@ -146,7 +146,7 @@ st.markdown("""
     div[data-testid="stTabs"] button {
         color: #A0AEC0;
         font-weight: 600;
-        font-size: 3.35rem; /* <-- Increased size (adjust this value as needed) */
+        font-size: 10.35rem; /* <-- Increased size (adjust this value as needed) */
         transition: color 0.3s ease;
     }
 
