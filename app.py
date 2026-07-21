@@ -2,7 +2,7 @@ import os
 import requests
 import streamlit as st
 import torch
-from huggingface_hub import hf_hub_download
+# from huggingface_hub import hf_hub_download
 from PIL import Image
 
 import sys
@@ -12,9 +12,14 @@ root_path = Path(__file__).resolve().parent.parent
 if str(root_path) not in sys.path:
     sys.path.insert(0, str(root_path))
 
-from VAEResNet.config import CONFIG
+from VAEResNet.config import CONFIG as VAE_CONFIG
 from VAEResNet.models.vae import TomographyVAE
-from VAEResNet.inference import run_streamlit_inference 
+from VAEResNet.inference import run_streamlit_inference as vae_inference
+
+from cDDPM.config import CONFIG as CDDPM_CONFIG
+from cDDPM.models.diffusion import GaussianDiffusion
+from cDDPM.models.unet import ConditionalUNet
+from cDDPM.inference import run_streamlit_inference as cddpm_inference
 
 
 st.set_page_config(
@@ -184,7 +189,7 @@ st.markdown("""
 
 # Model loading into cache
 @st.cache_resource(show_spinner=False)
-def load_private_model():
+def load_private_model(model_type):
     """Fetches the private PyTorch model bypassing the HF library."""
     
     status = st.empty()
@@ -195,47 +200,55 @@ def load_private_model():
             return None
             
         token = st.secrets["HF_TOKEN"]
-        
-        # 1. Use the direct REST API URL for your file
-        url = "https://huggingface.co/albertocaschi/VAEResNet_Tomography/resolve/main/VAEResNet.pth"
         headers = {"Authorization": f"Bearer {token}"}
         
-        # 2. Save it to Streamlit's /tmp directory (fastest, no file lock issues)
-        local_path = "/tmp/VAEResNet.pth"
+        if model_type == "VAE":
+            url = "https://huggingface.co/albertocaschi/VAEResNet_Tomography/resolve/main/VAEResNet.pth"
+            local_path = "/tmp/VAEResNet.pth"
+        elif model_type == "cDDPM":
+            url = "https://huggingface.co/albertocaschi/tomo-cDDPM.pth"
+            local_path = "/tmp/cDDPM.pth"
+        else:
+            status.error(f"Unknown model type: {model_type}")
+            return None
         
-        # Only download if we haven't already
         if not os.path.exists(local_path):
-            status.info("Downloading model directly via HTTP...")
+            status.info(f"Downloading {model_type} model directly via HTTP...")
             
-            # Stream the download so we don't blow up Streamlit's RAM
             response = requests.get(url, headers=headers, stream=True)
             
-            # Catch authentication or permission errors instantly
             if response.status_code != 200:
                 status.error(f"HTTP Error {response.status_code}: Check if your token is valid and has 'Read' access.")
                 return None
                 
-            # Write the file in chunks
             with open(local_path, "wb") as f:
                 for chunk in response.iter_content(chunk_size=8192):
                     f.write(chunk)
         
-        status.info("Model downloaded! Loading into PyTorch...")
+        status.info(f"{model_type} downloaded! Loading into PyTorch...")
         
         device = torch.device('cpu')
-        checkpoint = torch.load(local_path, map_location=device)
         
-        model = TomographyVAE(
-            latent_dim=CONFIG["latent_dim"],
-            target_size=CONFIG["target_size"],
-            resnet_type=CONFIG["resnet_type"],
-            freeze_early_layers=CONFIG["freeze_early_layers"]
-        ).to(device)
+        checkpoint = torch.load(local_path, map_location=device, weights_only=True) 
         
-        model.load_state_dict(checkpoint['model_state_dict'])
+        if model_type == "VAE":
+            model = TomographyVAE(
+                latent_dim=VAE_CONFIG["latent_dim"],
+                target_size=VAE_CONFIG["target_size"],
+                resnet_type=VAE_CONFIG["resnet_type"],
+                freeze_early_layers=VAE_CONFIG["freeze_early_layers"]
+            ).to(device)
+            
+            model.load_state_dict(checkpoint['model_state_dict'])
+
+        elif model_type == "cDDPM":
+            model = ConditionalUNet(CDDPM_CONFIG).to(device)
+            
+            model.load_state_dict(checkpoint['model_state_dict'])
+
         model.eval()
         
-        status.success("Model loaded successfully!")
+        status.success(f"{model_type} loaded successfully!")
         status.empty() 
         
         return model
@@ -245,7 +258,8 @@ def load_private_model():
         print(f"DEBUG ERROR: {e}")
         return None
 
-model = load_private_model()
+vae_model = load_private_model("VAE")
+cddpm_model = load_private_model("cDDPM")
 
 
 ## APP
@@ -288,10 +302,10 @@ with tab1:
     with col_arch:
         st.markdown("<div style='margin-top: 3.5rem;'></div>", unsafe_allow_html=True)
         try:
-            arch_image = Image.open("assets/architecture.png")
+            arch_image = Image.open("assets/vae_architecture.png")
             st.image(arch_image, caption="VAE Network pipeline with ResNet-18 Feature Extractor.", use_container_width=True)
         except FileNotFoundError:
-            st.info("**Architecture diagram placeholder:** Place 'architecture.png' in your 'assets/' folder to display the network pipeline here.")
+            st.info("**Architecture diagram placeholder:** Place 'vae_architecture.png' in your 'assets/' folder to display the network pipeline here.")
 
     st.divider()
 
@@ -477,8 +491,8 @@ with tab1:
                         </div>
                     """, unsafe_allow_html=True)
                     
-                    run_streamlit_inference(
-                        model = model,
+                    vae_inference(
+                        model = vae_model,
                         input_mrc_path = mrc_file_path,
                         output_image_path = output_image_path,
                         output_fbp_path = output_fbp_path,
@@ -512,6 +526,7 @@ with tab1:
             st.warning("Please select or upload a valid .mrc file.")
 
 with tab2:
+
     # Overview
     col_intro, col_arch = st.columns(2, gap="large")
 
@@ -535,10 +550,10 @@ with tab2:
     with col_arch:
         st.markdown("<div style='margin-top: 3.5rem;'></div>", unsafe_allow_html=True)
         try:
-            arch_image = Image.open("assets/architecture.png")
+            arch_image = Image.open("assets/cddpm_architecture.png")
             st.image(arch_image, caption="U-Net cDDPM model architecture", use_container_width=True)
         except FileNotFoundError:
-            st.info("**Architecture diagram placeholder:** Place 'architecture.png' in your 'assets/' folder to display the network pipeline here.")
+            st.info("**Architecture diagram placeholder:** Place 'cddpm_architecture.png' in your 'assets/' folder to display the network pipeline here.")
 
     st.divider()
 
@@ -724,14 +739,12 @@ with tab2:
                         </div>
                     """, unsafe_allow_html=True)
                     
-                    run_streamlit_inference(
-                        model = model,
+                    cddpm_inference(
+                        model = cddpm_model,
                         input_mrc_path = mrc_file_path,
                         output_image_path = output_image_path,
                         output_fbp_path = output_fbp_path,
-                        is_complete=True,
-                        acquisition_config = acquisition_config,
-                        threshold = 0.05
+                        acquisition_config = acquisition_config
                     )
                     
                     loading_placeholder.empty()
