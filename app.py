@@ -142,28 +142,34 @@ st.markdown("""
     div[data-testid="stRadio"] > label { font-weight: 600; color: #94A3B8; }
     div[data-testid="stSelectbox"] > label { font-weight: 600; color: #94A3B8; }
     
-    /* 1. Base Tab Styling (Make text bigger) */
+    /* 1. Base Tab Styling (Targeting the inner <p> tag for font size) */
+    div[data-testid="stTabs"] button p {
+        font-size: 1.35rem !important; /* Force the larger font size */
+        font-weight: 600 !important;   /* Force the bold weight */
+    }
+
+    /* 2. Base Tab Color and Transition */
     div[data-testid="stTabs"] button {
-        color: #A0AEC0;
-        font-weight: 600;
-        font-size: 10.35rem; /* <-- Increased size (adjust this value as needed) */
+        color: #A0AEC0 !important; /* Default unselected color */
         transition: color 0.3s ease;
     }
 
-    /* 2. Hover State (Change text color when mouse is over it) */
-    div[data-testid="stTabs"] button:hover {
-        color: #ffffff; /* <-- Brilliant white on hover */
+    /* 3. Hover State (Ensure both button and inner text change color) */
+    div[data-testid="stTabs"] button:hover,
+    div[data-testid="stTabs"] button:hover p {
+        color: #ffffff !important; /* Brilliant white on hover */
     }
 
-    /* 3. Selected Tab Text Color */
-    div[data-testid="stTabs"] button[aria-selected="true"] {
-        color: #4facfe; /* <-- Neon blue for the active text */
+    /* 4. Selected Tab Text Color */
+    div[data-testid="stTabs"] button[aria-selected="true"],
+    div[data-testid="stTabs"] button[aria-selected="true"] p {
+        color: #00f2fe !important; /* Neon blue for the active text */
     }
 
-    /* 4. Selected Tab Underline Color */
+    /* 5. Selected Tab Underline Color */
     div[data-baseweb="tab-highlight"] {
-        background-color: #00f2fe; /* <-- Neon blue for the underline */
-        height: 3px; /* Optional: makes the underline slightly thicker */
+        background-color: #00f2fe !important; /* Neon blue for the underline */
+        height: 3px !important; /* Slightly thicker underline */
     }
     </style>
 """, unsafe_allow_html=True)
