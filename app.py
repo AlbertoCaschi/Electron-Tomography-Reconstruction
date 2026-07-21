@@ -146,7 +146,7 @@ st.markdown("""
     div[data-testid="stTabs"] button {
         color: #A0AEC0;
         font-weight: 600;
-        font-size: 1.35rem; /* <-- Increased size (adjust this value as needed) */
+        font-size: 3.35rem; /* <-- Increased size (adjust this value as needed) */
         transition: color 0.3s ease;
     }
 
@@ -157,7 +157,7 @@ st.markdown("""
 
     /* 3. Selected Tab Text Color */
     div[data-testid="stTabs"] button[aria-selected="true"] {
-        color: #00f2fe; /* <-- Neon blue for the active text */
+        color: #4facfe; /* <-- Neon blue for the active text */
     }
 
     /* 4. Selected Tab Underline Color */
