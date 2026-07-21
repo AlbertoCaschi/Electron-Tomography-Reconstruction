@@ -234,10 +234,10 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-st.divider()
+# st.divider()
 
 # --- NEW NAVIGATION BAR ---
-tab1, tab2 = st.tabs(["Selection 1", "Selection 2"])
+tab1, tab2 = st.tabs(["VAE model", "Diffusion Model"])
 
 with tab1:
     # Overview
