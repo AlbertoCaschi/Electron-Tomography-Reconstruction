@@ -254,8 +254,6 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# st.divider()
-
 # --- NEW NAVIGATION BAR ---
 tab1, tab2 = st.tabs(["VAE model", "Diffusion Model"])
 
@@ -300,7 +298,8 @@ with tab1:
         input_mode = st.radio(
             "Choose sinogram source data:",
             ["Use a preloaded example file", "Upload custom .mrc file"],
-            horizontal=True
+            horizontal=True,
+            key="radio_tab1"
         )
 
         if input_mode == "Upload custom .mrc file":
@@ -327,7 +326,8 @@ with tab1:
                     "Circle",
                     "2 Squares",
                     "Catalyst"
-                ]
+                ],
+                key="sb_example_tab1"
             )
 
             if "Rectangle" in example_choice and "Oval" in example_choice:
@@ -354,7 +354,7 @@ with tab1:
                 mrc_file_path = None
 
         else:
-            uploaded_file = st.file_uploader("Upload an experimental .mrc sinogram", type=["mrc"])
+            uploaded_file = st.file_uploader("Upload an experimental .mrc sinogram", type=["mrc"], key="uploader_tab1")
             if uploaded_file is not None:
                 filename = "uploaded.mrc"
                 mrc_file_path = os.path.join("assets", filename)
@@ -374,7 +374,8 @@ with tab1:
                 "±40° Wedge (5° Step)",
                 "±40° Wedge (10° Step)",
                 "±40° Wedge (20° Step)"
-            ]
+            ],
+            key="sb_wedge_tab1"
         )
 
         config_map = {
@@ -396,7 +397,7 @@ with tab1:
             
             with st.container():
                 st.markdown("<div style='padding-top: 10px;'></div>", unsafe_allow_html=True)
-                run_btn = st.button("🚀 Run Tomographic Reconstruction", use_container_width=True, type="primary")
+                run_btn = st.button("🚀 Run Tomographic Reconstruction", use_container_width=True, type="primary", key="btn_run_tab1")
                 
                 if run_btn:
                     output_image_path = os.path.join("assets", "full_reconstruction_result.png")
@@ -493,7 +494,8 @@ with tab1:
                                 data=file,
                                 file_name=f"{filename[:-4]}_reconstruction_result.png",
                                 mime="image/png",
-                                use_container_width=True
+                                use_container_width=True,
+                                key="btn_dl_tab1"
                             )
                     else:
                         st.error("Inference executed, but output image could not be located.")
@@ -543,7 +545,8 @@ with tab2:
         input_mode = st.radio(
             "Choose sinogram source data:",
             ["Use a preloaded example file", "Upload custom .mrc file"],
-            horizontal=True
+            horizontal=True,
+            key="radio_tab2"
         )
 
         if input_mode == "Upload custom .mrc file":
@@ -570,7 +573,8 @@ with tab2:
                     "Circle",
                     "2 Squares",
                     "Catalyst"
-                ]
+                ],
+                key="sb_example_tab2"
             )
 
             if "Rectangle" in example_choice and "Oval" in example_choice:
@@ -597,7 +601,7 @@ with tab2:
                 mrc_file_path = None
 
         else:
-            uploaded_file = st.file_uploader("Upload an experimental .mrc sinogram", type=["mrc"])
+            uploaded_file = st.file_uploader("Upload an experimental .mrc sinogram", type=["mrc"], key="uploader_tab2")
             if uploaded_file is not None:
                 filename = "uploaded.mrc"
                 mrc_file_path = os.path.join("assets", filename)
@@ -617,7 +621,8 @@ with tab2:
                 "±40° Wedge (5° Step)",
                 "±40° Wedge (10° Step)",
                 "±40° Wedge (20° Step)"
-            ]
+            ],
+            key="sb_wedge_tab2"
         )
 
         config_map = {
@@ -639,7 +644,7 @@ with tab2:
             
             with st.container():
                 st.markdown("<div style='padding-top: 10px;'></div>", unsafe_allow_html=True)
-                run_btn = st.button("🚀 Run Tomographic Reconstruction", use_container_width=True, type="primary")
+                run_btn = st.button("🚀 Run Tomographic Reconstruction", use_container_width=True, type="primary", key="btn_run_tab2")
                 
                 if run_btn:
                     output_image_path = os.path.join("assets", "full_reconstruction_result.png")
@@ -736,7 +741,8 @@ with tab2:
                                 data=file,
                                 file_name=f"{filename[:-4]}_reconstruction_result.png",
                                 mime="image/png",
-                                use_container_width=True
+                                use_container_width=True,
+                                key="btn_dl_tab2"
                             )
                     else:
                         st.error("Inference executed, but output image could not be located.")
