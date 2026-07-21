@@ -46,7 +46,7 @@ CONFIG = {
         "vis_frequency" : 1,
         "output_dir": "./cDDPM/checkpoints/",
         "log_dir": "./cDDPM/logs/",
-        "resume_checkpoint": r"C:\Users\Alberto\Desktop\Electron-Tomography-Reconstruction\cDDPM\checkpoints\unet_checkpoint_epoch_15.pt"
+        "resume_checkpoint": r"C:\Users\Alberto\Desktop\Electron-Tomography-Reconstruction\cDDPM\checkpoints\unet_checkpoint_epoch_16.pt"
     }
 }
 

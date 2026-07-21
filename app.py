@@ -444,7 +444,7 @@ with tab1:
                             width: 50%;
                             height: 100%;
                             background: linear-gradient(90deg, transparent, #00f2fe, #4facfe, transparent);
-                            animation: scan 1.5s infinite linear;
+                            animation: scan 2s infinite linear;
                         }
                         
                         .loader-text {
@@ -453,7 +453,7 @@ with tab1:
                             font-size: 1.1rem;
                             letter-spacing: 2px;
                             margin-top: 1rem;
-                            animation: pulseText 1.5s infinite ease-in-out;
+                            animation: pulseText 2s infinite ease-in-out;
                         }
                         
                         /* Animations */
@@ -520,11 +520,11 @@ with tab2:
             <div class="glass-card">
                 <div class="section-header">Method Overview</div>
                 <p style="color: #CBD5E1; line-height: 1.7; text-align: justify; text-justify: inter-word;">
-                    This method addresses the electron-tomography missing wedge and projections by training a VAE-based sinogram inpainting model to infer absent sinogram data. Using 2500 synthetic samples with noise and augmentations, the network learns physically consistent projections that improve FBP reconstruction, enabling 2D slice recovery from severely incomplete inputs.
+                    This method addresses the electron-tomography missing wedge and projections by training a diffusion model which reconstruct the 2D slice using the incomplete FBP image as conditional. Using 2500 synthetic samples with noise and augmentations, the network learns how to reconstruct physically consistent features, enabling 2D slice recovery from severely incomplete inputs.
                 </p>
                 <div class="section-header" style="margin-top: 1.5rem;">Model Architecture</div>
                 <p style="color: #CBD5E1; line-height: 1.7; text-align: justify; text-justify: inter-word;">
-                    This model is a <strong>Variational Autoencoder</strong> built on a pre-trained <strong>ResNet-18</strong> that compresses each sinogram into a 64-number representation (latent vector). A decoder then expands it back using smooth upsampling steps to avoid visual artifacts. Training uses smart regularization so the network learns real geometric patterns instead of memorizing examples.
+                    This model is a <strong>Conditional Denoising Diffusion Probabilistic Model (cDDPM)</strong> built on a <strong>U-Net</strong> architecture that transforms a noisy image into a clear, no-artifact version of the 2D slice. To know exactly which object needs to be reconstructed, the model is "guided" by the incomplete 2D reconstruction of the slice. The model is able to generalize and reconstruct any image with any 60-40 projection wedge and any number of projections inside this range.
                 </p>
                 <p style="color: #B5C3D2; line-height: 1.7; font-size: 0.7rem;">
                     Check the slides for additional information.
@@ -536,7 +536,7 @@ with tab2:
         st.markdown("<div style='margin-top: 3.5rem;'></div>", unsafe_allow_html=True)
         try:
             arch_image = Image.open("assets/architecture.png")
-            st.image(arch_image, caption="VAE Network pipeline with ResNet-18 Feature Extractor.", use_container_width=True)
+            st.image(arch_image, caption="U-Net cDDPM model architecture", use_container_width=True)
         except FileNotFoundError:
             st.info("**Architecture diagram placeholder:** Place 'architecture.png' in your 'assets/' folder to display the network pipeline here.")
 
@@ -691,7 +691,7 @@ with tab2:
                             width: 50%;
                             height: 100%;
                             background: linear-gradient(90deg, transparent, #00f2fe, #4facfe, transparent);
-                            animation: scan 1.5s infinite linear;
+                            animation: scan 2s infinite linear;
                         }
                         
                         .loader-text {
@@ -700,7 +700,7 @@ with tab2:
                             font-size: 1.1rem;
                             letter-spacing: 2px;
                             margin-top: 1rem;
-                            animation: pulseText 1.5s infinite ease-in-out;
+                            animation: pulseText 2s infinite ease-in-out;
                         }
                         
                         /* Animations */
@@ -717,7 +717,7 @@ with tab2:
                         
                         <div class="custom-loader-container">
                             <div style="font-size: 2rem; animation: pulseText 2s infinite;">RECONSTRUCTING SINOGRAM</div>
-                            <div class="loader-text">Please wait...</div>
+                            <div class="loader-text">Please wait (may take a few minutes)...</div>
                             <div class="scanner-track">
                                 <div class="scanner-beam"></div>
                             </div>
