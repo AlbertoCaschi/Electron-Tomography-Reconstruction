@@ -171,6 +171,13 @@ st.markdown("""
         background-color: #65b9f8 !important; /* Neon blue for the underline */
         height: 3px !important; /* Slightly thicker underline */
     }
+            
+    /* 6. Action Button Text Color */
+    div[data-testid="stButton"] button p,
+    div[data-testid="stDownloadButton"] button p {
+        color: #ffffff !important; 
+        font-weight: 600 !important;
+    }
     </style>
 """, unsafe_allow_html=True)
 
