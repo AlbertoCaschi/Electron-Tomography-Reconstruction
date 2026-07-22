@@ -206,7 +206,7 @@ def load_private_model(model_type):
             url = "https://huggingface.co/albertocaschi/VAEResNet_Tomography/resolve/main/VAEResNet.pth"
             local_path = "/tmp/VAEResNet.pth"
         elif model_type == "cDDPM":
-            url = "https://huggingface.co/albertocaschi/tomo-cDDPM.pth"
+            url = "https://huggingface.co/albertocaschi/tomo-cDDPM/resolve/main/tomo-cDDPM.pth"
             local_path = "/tmp/cDDPM.pth"
         else:
             status.error(f"Unknown model type: {model_type}")
@@ -731,7 +731,7 @@ with tab2:
                         </style>
                         
                         <div class="custom-loader-container">
-                            <div style="font-size: 2rem; animation: pulseText 2s infinite;">RECONSTRUCTING SINOGRAM</div>
+                            <div style="font-size: 2rem; animation: pulseText 2s infinite;">RECONSTRUCTING 2D SLICE</div>
                             <div class="loader-text">Please wait (may take a few minutes)...</div>
                             <div class="scanner-track">
                                 <div class="scanner-beam"></div>
