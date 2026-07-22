@@ -206,8 +206,8 @@ def load_private_model(model_type):
             url = "https://huggingface.co/albertocaschi/VAEResNet_Tomography/resolve/main/VAEResNet.pth"
             local_path = "/tmp/VAEResNet.pth"
         elif model_type == "cDDPM":
-            url = "https://huggingface.co/albertocaschi/tomo-cDDPM/resolve/main/tomo-cDDPM.pth"
-            local_path = "/tmp/cDDPM.pth"
+            url = "https://huggingface.co/albertocaschi/tomo-cDDPM/resolve/main/tomo-cDDPM.pt"
+            local_path = "/tmp/cDDPM.pt"
         else:
             status.error(f"Unknown model type: {model_type}")
             return None
