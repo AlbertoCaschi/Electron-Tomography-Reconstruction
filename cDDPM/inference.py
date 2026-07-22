@@ -124,7 +124,7 @@ def run_inference(checkpoint_path, test_file, acquisition_config):
 
 
 def run_streamlit_inference(
-        checkpoint_path,
+        model,
         test_file,
         output_image_path,
         output_fbp_path,
@@ -143,16 +143,14 @@ def run_streamlit_inference(
     # model
     print("Loading models and physics operators...")
     physics_operator = TomographyOperator(CONFIG["physics"])
-    unet = ConditionalUNet(CONFIG).to(device)
-    diffusion = GaussianDiffusion(CONFIG).to(device)
-
-    if not os.path.exists(checkpoint_path):
-        raise FileNotFoundError(f"Checkpoint not found at {checkpoint_path}")
     
-    checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=True)
-    unet.load_state_dict(checkpoint['model_state_dict'])
+    # Use the model object passed from app.py
+    unet = model.to(device)
     unet.eval()
-    print(f"Successfully loaded checkpoint from epoch {checkpoint.get('epoch', 'N/A')}.")
+    
+    diffusion = GaussianDiffusion(CONFIG).to(device)
+    
+    # (Removed the os.path.exists and torch.load block entirely)
     
 
     # full angles for ground truth reconstruction

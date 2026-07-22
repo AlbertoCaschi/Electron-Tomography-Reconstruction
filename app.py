@@ -213,7 +213,7 @@ def load_private_model(model_type):
             return None
         
         if not os.path.exists(local_path):
-            status.info(f"Downloading {model_type} model directly via HTTP...")
+            status.info(f"Loading {model_type} model...")
             
             response = requests.get(url, headers=headers, stream=True)
             
@@ -225,7 +225,7 @@ def load_private_model(model_type):
                 for chunk in response.iter_content(chunk_size=8192):
                     f.write(chunk)
         
-        status.info(f"{model_type} downloaded! Loading into PyTorch...")
+        status.info(f"Loading {model_type} into PyTorch...")
         
         device = torch.device('cpu')
         
@@ -740,7 +740,7 @@ with tab2:
                     """, unsafe_allow_html=True)
                     
                     cddpm_inference(
-                        checkpoint_path = cddpm_model,
+                        model = cddpm_model,
                         test_file = mrc_file_path,
                         output_image_path = output_image_path,
                         output_fbp_path = output_fbp_path,
