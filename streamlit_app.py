@@ -2,8 +2,11 @@ import os
 import requests
 import streamlit as st
 import torch
-# from huggingface_hub import hf_hub_download
 from PIL import Image
+import shutil
+
+# --- NEW: Import Gradio Client for remote API execution ---
+from gradio_client import Client, handle_file
 
 import sys
 from pathlib import Path
@@ -12,15 +15,12 @@ root_path = Path(__file__).resolve().parent.parent
 if str(root_path) not in sys.path:
     sys.path.insert(0, str(root_path))
 
+# --- VAE Imports remain for local execution ---
 from VAEResNet.config import CONFIG as VAE_CONFIG
 from VAEResNet.models.vae import TomographyVAE
 from VAEResNet.inference import run_streamlit_inference as vae_inference
 
-from cDDPM.config import CONFIG as CDDPM_CONFIG
-from cDDPM.models.diffusion import GaussianDiffusion
-from cDDPM.models.unet import ConditionalUNet
-from cDDPM.inference import run_streamlit_inference as cddpm_inference
-
+# --- cDDPM local imports have been removed to save memory ---
 
 st.set_page_config(
     page_title="Electron Tomography Reconstruction",
@@ -187,7 +187,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-# Model loading into cache
+# Model loading into cache - ONLY FOR VAE
 @st.cache_resource(show_spinner=False)
 def load_private_model(model_type):
     """Fetches the private PyTorch model bypassing the HF library."""
@@ -205,9 +205,6 @@ def load_private_model(model_type):
         if model_type == "VAE":
             url = "https://huggingface.co/albertocaschi/VAEResNet_Tomography/resolve/main/VAEResNet.pth"
             local_path = "/tmp/VAEResNet.pth"
-        elif model_type == "cDDPM":
-            url = "https://huggingface.co/albertocaschi/tomo-cDDPM/resolve/main/tomo-cDDPM.pt"
-            local_path = "/tmp/cDDPM.pt"
         else:
             status.error(f"Unknown model type: {model_type}")
             return None
@@ -241,11 +238,6 @@ def load_private_model(model_type):
             
             model.load_state_dict(checkpoint['model_state_dict'])
 
-        elif model_type == "cDDPM":
-            model = ConditionalUNet(CDDPM_CONFIG).to(device)
-            
-            model.load_state_dict(checkpoint['model_state_dict'])
-
         model.eval()
         
         status.success(f"{model_type} loaded successfully!")
@@ -258,9 +250,8 @@ def load_private_model(model_type):
         print(f"DEBUG ERROR: {e}")
         return None
 
+# Only the VAE model is loaded locally now
 vae_model = load_private_model("VAE")
-cddpm_model = load_private_model("cDDPM")
-
 
 ## APP
 
@@ -669,6 +660,7 @@ with tab2:
                 run_btn = st.button("🚀 Run Tomographic Reconstruction", use_container_width=True, type="primary", key="btn_run_tab2")
                 
                 if run_btn:
+                    # Defining local destinations for the returned backend images
                     output_image_path = os.path.join("assets", "full_reconstruction_result.png")
                     output_fbp_path = os.path.join("assets", "fbp_reconstruction_result.png")
                     
@@ -739,33 +731,47 @@ with tab2:
                         </div>
                     """, unsafe_allow_html=True)
                     
-                    cddpm_inference(
-                        model = cddpm_model,
-                        test_file = mrc_file_path,
-                        output_image_path = output_image_path,
-                        output_fbp_path = output_fbp_path,
-                        acquisition_config = acquisition_config
-                    )
-                    
-                    loading_placeholder.empty()
-                    
-                    if os.path.exists(output_image_path):
-                        st.success("Reconstruction complete!")
+                    try:
+                        # --- NEW: Call the remote Hugging Face API instead of local execution ---
                         
-                        result_img = Image.open(output_image_path)
-                        st.image(result_img, caption="Reconstruction output: input sinogram and neural networks solution", use_container_width=False)
+                        # IMPORTANT: Replace the string below with your actual Hugging Face Space repository ID!
+                        hf_space_client = Client("albertocaschi/tomo-cddpm-backend")
                         
-                        with open(output_fbp_path, "rb") as file:
-                            st.download_button(
-                                label="📥  Download FBP reconstruction (PNG)",
-                                data=file,
-                                file_name=f"{filename[:-4]}_reconstruction_result.png",
-                                mime="image/png",
-                                use_container_width=True,
-                                key="btn_dl_tab2"
-                            )
-                    else:
-                        st.error("Inference executed, but output image could not be located.")
+                        # Send the file and configuration to the API.
+                        # Note: This expects your Gradio app to return two file paths: (full_reconstruction, fbp_reconstruction)
+                        result_image_temp, fbp_image_temp = hf_space_client.predict(
+                            mrc_file=handle_file(mrc_file_path),
+                            config_selection=config_choice,
+                            api_name="/predict"
+                        )
+                        
+                        # Move the returned temporary files to the asset folder
+                        shutil.copy(result_image_temp, output_image_path)
+                        shutil.copy(fbp_image_temp, output_fbp_path)
+                        
+                        loading_placeholder.empty()
+                        
+                        if os.path.exists(output_image_path):
+                            st.success("Reconstruction complete!")
+                            
+                            result_img = Image.open(output_image_path)
+                            st.image(result_img, caption="Reconstruction output: input sinogram and neural networks solution", use_container_width=False)
+                            
+                            with open(output_fbp_path, "rb") as file:
+                                st.download_button(
+                                    label="📥  Download FBP reconstruction (PNG)",
+                                    data=file,
+                                    file_name=f"{filename[:-4]}_reconstruction_result.png",
+                                    mime="image/png",
+                                    use_container_width=True,
+                                    key="btn_dl_tab2"
+                                )
+                        else:
+                            st.error("Inference executed on external GPU, but output image could not be loaded locally.")
+                            
+                    except Exception as e:
+                        loading_placeholder.empty()
+                        st.error(f"Failed to communicate with Hugging Face ZeroGPU space: {e}")
                 else:
                     st.info("System ready. Configure parameters on the left and initialize reconstruction.")
         else:

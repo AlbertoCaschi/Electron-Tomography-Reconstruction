@@ -4,6 +4,7 @@ diffusers==0.36.0
 filelock==3.19.1
 fonttools==4.60.2
 fsspec==2025.10.0
+gradio-client==2.5.0
 huggingface_hub==1.8.0
 ImageIO==2.37.2
 importlib_resources==6.5.2
