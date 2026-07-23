@@ -36,14 +36,50 @@ st.markdown("""
         font-family: 'Inter', sans-serif;
     }
             
+    /* 1. Base Container Setup */
     [data-testid="stAppViewContainer"] {
         background-color: #0B1120; 
-        
+        z-index: 0; /* Establishes a stacking context for backgrounds */
+    }
+    
+    /* 2. Default Background Layer (Tab 1: VAE) */
+    [data-testid="stAppViewContainer"]::before {
+        content: "";
+        position: fixed;
+        top: 0; left: 0; width: 100vw; height: 100vh;
         background-image: radial-gradient(ellipse 150% 150% at 100% 100%, 
             rgba(102, 213, 250, 0.40) 0%,
             transparent 75%
         );
-        background-attachment: fixed;
+        z-index: -1;
+        opacity: 1;
+        transition: opacity 1.2s ease-in-out;
+        pointer-events: none;
+    }
+
+    /* 3. New Background Layer (Tab 2: Diffusion) */
+    /* I shifted this one to the bottom-left (0% 100%) and gave it a soft purple/magenta tint to differentiate the model */
+    [data-testid="stAppViewContainer"]::after {
+        content: "";
+        position: fixed;
+        top: 0; left: 0; width: 100vw; height: 100vh;
+        background-image: radial-gradient(ellipse 150% 150% at 0% 100%, 
+            rgba(167, 139, 250, 0.40) 0%,
+            transparent 75%
+        );
+        z-index: -1;
+        opacity: 0; /* Hidden by default */
+        transition: opacity 1.2s ease-in-out;
+        pointer-events: none;
+    }
+
+    /* 4. The Trigger: If the second tab is selected, swap the opacities! */
+    [data-testid="stAppViewContainer"]:has(div[data-testid="stTabs"] button:nth-of-type(2)[aria-selected="true"])::before {
+        opacity: 0;
+    }
+    
+    [data-testid="stAppViewContainer"]:has(div[data-testid="stTabs"] button:nth-of-type(2)[aria-selected="true"])::after {
+        opacity: 1;
     }
     
             
