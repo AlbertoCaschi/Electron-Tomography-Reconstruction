@@ -47,7 +47,7 @@ st.markdown("""
         content: "";
         position: fixed;
         top: 0; left: 0; width: 100vw; height: 100vh;
-        background-image: radial-gradient(ellipse 150% 150% at 100% 100%, 
+        background-image: radial-gradient(ellipse 150% 150% at 0% 100%, 
             rgba(102, 213, 250, 0.40) 0%,
             transparent 75%
         );
@@ -63,7 +63,7 @@ st.markdown("""
         content: "";
         position: fixed;
         top: 0; left: 0; width: 100vw; height: 100vh;
-        background-image: radial-gradient(ellipse 150% 150% at 0% 100%, 
+        background-image: radial-gradient(ellipse 150% 150% at 100% 100%, 
             rgba(167, 139, 250, 0.40) 0%,
             transparent 75%
         );
