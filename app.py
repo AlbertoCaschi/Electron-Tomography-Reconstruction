@@ -574,10 +574,9 @@ with tab2:
         """, unsafe_allow_html=True)
 
     with col_arch:
-        st.markdown("<div style='margin-top: 3.5rem;'></div>", unsafe_allow_html=True)
         try:
             arch_image = Image.open("assets/cddpm_architecture.png")
-            st.image(arch_image, caption="U-Net cDDPM model architecture", use_container_width=True)
+            st.image(arch_image, caption="U-Net cDDPM model architecture", width = 400)
         except FileNotFoundError:
             st.info("**Architecture diagram placeholder:** Place 'cddpm_architecture.png' in your 'assets/' folder to display the network pipeline here.")
 
