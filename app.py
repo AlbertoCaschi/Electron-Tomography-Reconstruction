@@ -327,7 +327,7 @@ with tab1:
         """, unsafe_allow_html=True)
 
     with col_arch:
-        st.markdown("<div style='margin-top: 3.5rem;'></div>", unsafe_allow_html=True)
+        st.markdown("<div style='margin-top: 3rem;'></div>", unsafe_allow_html=True)
         try:
             arch_image = Image.open("assets/vae_architecture.png")
             st.image(arch_image, caption="VAE Network pipeline with ResNet-18 Feature Extractor.", use_container_width=True)
@@ -576,7 +576,7 @@ with tab2:
     with col_arch:
         try:
             arch_image = Image.open("assets/cddpm_architecture.png")
-            st.image(arch_image, caption="U-Net cDDPM model architecture", width = 400)
+            st.image(arch_image, caption="U-Net cDDPM model architecture", use_container_width=True)
         except FileNotFoundError:
             st.info("**Architecture diagram placeholder:** Place 'cddpm_architecture.png' in your 'assets/' folder to display the network pipeline here.")
 
