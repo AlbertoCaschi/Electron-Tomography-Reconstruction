@@ -577,7 +577,7 @@ with tab2:
         try:
             arch_image = Image.open("assets/cddpm_architecture.png")
 
-            spacer_left, img_col, spacer_right = st.columns([1, 3, 1])
+            spacer_left, img_col, spacer_right = st.columns([1, 4, 1])
             with img_col:
                 st.image(arch_image, caption="U-Net cDDPM model architecture", use_container_width=True)
 
