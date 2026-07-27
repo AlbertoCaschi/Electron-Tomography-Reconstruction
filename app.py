@@ -762,7 +762,7 @@ with tab2:
                         
                         <div class="custom-loader-container">
                             <div style="font-size: 2rem; animation: pulseText 2s infinite;">RECONSTRUCTING 2D SLICE</div>
-                            <div class="loader-text">Please wait (may take a few minutes)...</div>
+                            <div class="loader-text">Please wait (may take a minute)...</div>
                             <div class="scanner-track">
                                 <div class="scanner-beam"></div>
                             </div>
