@@ -562,10 +562,10 @@ with tab2:
             <div class="glass-card">
                 <div class="section-header">Method Overview</div>
                 <p style="color: #CBD5E1; line-height: 1.7; text-align: justify; text-justify: inter-word;">
-                    This method addresses the electron-tomography missing wedge problem by training a generative diffusion model to reconstruct 2D slices, using incomplete Filtered Back Projection (FBP) images as deterministic spatial constraints. Using 2,500 synthetic samples with noise and augmentations, the network learns to map physically consistent features. The mathematical framework relies on a Gaussian diffusion process that systematically adds and removes noise over a scheduled progression (such as a linear or cosine schedule) across a fixed number of timesteps (typically 1,000). By learning the reverse of this degradation, the method enables high-fidelity 2D slice recovery from severely incomplete projection inputs.
+                    This method addresses the electron-tomography missing wedge and projections problem by training a generative diffusion model to reconstruct 2D slices, using incomplete Filtered Back Projection (FBP) images as deterministic spatial constraints. Using 2,500 synthetic samples with noise and augmentations, the network learns to map physically consistent features. The mathematical framework relies on a <strong>Gaussian diffusion process</strong> that systematically adds and removes noise over a scheduled progression across 1000 timesteps. By learning the reverse of this degradation, the method enables high-fidelity 2D slice recovery from severely incomplete projection inputs.
                 <div class="section-header" style="margin-top: 1.5rem;">Model Architecture</div>
                 <p style="color: #CBD5E1; line-height: 1.7; text-align: justify; text-justify: inter-word;">
-                    This model is a <strong>Conditional Denoising Diffusion Probabilistic Model</strong> (<strong>cDDPM</strong>) built upon a 4-level U-Net backbone. Rather than transforming a noisy image directly into a clear version in a single pass, the network is trained to iteratively predict the specific noise tensor at each timestep.  To know exactly which object needs to be reconstructed, the model employs an "early fusion" conditioning mechanism: the current noisy image and the static, incomplete 2D FBP reconstruction are concatenated directly at the channel level before entering the network.  The U-Net architecture is optimized for both local and global awareness: it utilizes standard convolutional blocks for extracting fine structural details at higher resolutions, and selectively injects self-attention exclusively at its deepest bottleneck (Level 4) to ensure global structural coherence without overwhelming memory. Because of this robust, structurally-guided architecture, the model is able to generalize and successfully reconstruct any image with a 60-40 projection wedge, handling any number of projections inside this range.
+                    This model is a <strong>Conditional Denoising Diffusion Probabilistic Model</strong> (<strong>cDDPM</strong>) built upon a 4-level U-Net backbone. Rather than transforming a noisy image directly into a clear version in a single pass, the network is trained to iteratively predict the specific noise tensor at each timestep.  To know exactly which object needs to be reconstructed, the model employs an <i>early fusion</i> conditioning mechanism: the current noisy image and the static, incomplete 2D FBP reconstruction are concatenated directly at the channel level before entering the network.  The U-Net architecture is optimized for both local and global awareness: it utilizes standard convolutional blocks for extracting fine structural details at higher resolutions, and selectively injects self-attention exclusively at its deepest bottleneck (Level 4) to ensure global structural coherence without overwhelming memory. Because of this robust, structurally-guided architecture, the model is able to generalize and successfully reconstruct images with a projection wedge.
                 </p>
                 <p style="color: #B5C3D2; line-height: 1.7; font-size: 0.7rem;">
                     Check the slides for additional information.
@@ -576,7 +576,11 @@ with tab2:
     with col_arch:
         try:
             arch_image = Image.open("assets/cddpm_architecture.png")
-            st.image(arch_image, caption="U-Net cDDPM model architecture", use_container_width=True)
+
+            spacer_left, img_col, spacer_right = st.columns([1, 2, 1])
+            with img_col:
+                st.image(arch_image, caption="U-Net cDDPM model architecture", use_container_width=True)
+
         except FileNotFoundError:
             st.info("**Architecture diagram placeholder:** Place 'cddpm_architecture.png' in your 'assets/' folder to display the network pipeline here.")
 
