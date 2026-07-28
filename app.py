@@ -225,36 +225,32 @@ st.markdown("""
 # Model loading into cache
 @st.cache_resource(show_spinner=False)
 def load_private_model(model_type):
-    """Fetches the private PyTorch model bypassing the HF library."""
+    """Fetches public PyTorch models from Hugging Face."""
     
     status = st.empty()
     
     try:
-        if "HF_TOKEN" not in st.secrets:
-            status.error("HF_TOKEN is missing from Streamlit secrets!")
-            return None
-            
-        token = st.secrets["HF_TOKEN"]
-        headers = {"Authorization": f"Bearer {token}"}
+        # Create a local 'models' directory if it doesn't exist
+        os.makedirs("models", exist_ok=True)
         
         if model_type == "VAE":
             url = "https://huggingface.co/albertocaschi/VAEResNet_Tomography/resolve/main/VAEResNet.pth"
-            local_path = "/tmp/VAEResNet.pth"
+            # Use os.path.join for cross-platform compatibility
+            local_path = os.path.join("models", "VAEResNet.pth")
         elif model_type == "cDDPM":
-            # Added URL for the cDDPM model based on the backend script
             url = "https://huggingface.co/albertocaschi/cDDPM_Tomography/resolve/main/cDDPM.pt"
-            local_path = "/tmp/cDDPM.pt"
+            local_path = os.path.join("models", "cDDPM.pt")
         else:
             status.error(f"Unknown model type: {model_type}")
             return None
         
         if not os.path.exists(local_path):
-            status.info(f"Loading {model_type} model...")
+            status.info(f"Downloading {model_type} model...")
             
-            response = requests.get(url, headers=headers, stream=True)
+            response = requests.get(url, stream=True)
             
             if response.status_code != 200:
-                status.error(f"HTTP Error {response.status_code}: Check if your token is valid and has 'Read' access.")
+                status.error(f"HTTP Error {response.status_code}: Could not fetch file from {url}")
                 return None
                 
             with open(local_path, "wb") as f:
@@ -274,9 +270,8 @@ def load_private_model(model_type):
                 freeze_early_layers=VAE_CONFIG["freeze_early_layers"]
             ).to(device)
             model.load_state_dict(checkpoint['model_state_dict'])
-            
+
         elif model_type == "cDDPM":
-            # Initialize ConditionalUNet using the imported config
             model = ConditionalUNet(CDDPM_CONFIG).to(device)
             model.load_state_dict(checkpoint['model_state_dict'])
 
