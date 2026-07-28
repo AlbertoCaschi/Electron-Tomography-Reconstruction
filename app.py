@@ -778,7 +778,7 @@ with tab2:
                     """, unsafe_allow_html=True)
                     
                     try:
-                        if execution_mode == "Remote GPU (Hugging Face Space)":
+                        if execution_mode == "Remote GPU":
                             # --- Call the remote Hugging Face API ---
                             hf_space_client = Client("albertocaschi/tomo-cddpm-backend")
                             
