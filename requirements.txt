@@ -34,6 +34,6 @@ torch == 2.8.0+cu126; platform_system == "Windows"
 torch == 2.8.0; platform_system == "Darwin"
 torch == 2.8.0+cpu; platform_system == "Linux"
 torchvision==0.23.0
-tqdm==4.67.3
+tqdm
 typing_extensions==4.15.0
 zipp==3.23.1
