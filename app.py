@@ -58,7 +58,7 @@ st.markdown("""
             rgba(102, 213, 250, 0.40) 0%,
             transparent 75%
         );
-        transition: opacity 0.8s ease-in-out;
+        transition: opacity 0.5s ease-in-out;
         opacity: 1; /* Visible by default */
     }
 
@@ -69,11 +69,11 @@ st.markdown("""
         top: 0; left: 0; width: 100vw; height: 100vh;
         pointer-events: none;
         z-index: -1;
-        background-image: radial-gradient(ellipse 150% 150% at 0% 100%, 
+        background-image: radial-gradient(ellipse 150% 150% at 100% 100%, 
             rgba(167, 139, 250, 0.40) 0%,
             transparent 75%
         );
-        transition: opacity 0.8s ease-in-out;
+        transition: opacity 0.5s ease-in-out;
         opacity: 0; /* Hidden by default */
     }
 
@@ -85,7 +85,12 @@ st.markdown("""
     }
 
     /* Hide the radio circles */
-    div[data-testid="stRadio"]:has(input[value="VAE Model"]) div[data-baseweb="radio"] > div:first-child {
+    div[data-testid="stRadio"]:has(input[value="VAE model"]) label[data-baseweb="radio"] > div:first-child {
+        display: none !important;
+    }
+    
+    /* Hide the native radio input element just in case */
+    div[data-testid="stRadio"]:has(input[value="VAE model"]) input[type="radio"] {
         display: none !important;
     }
 
