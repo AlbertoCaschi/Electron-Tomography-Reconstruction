@@ -35,7 +35,6 @@ st.markdown("""
         font-family: 'Inter', sans-serif;
     }
 
-    /* 3. Base UI Setup: Remove ALL interfering Streamlit backgrounds */
     body {
         background-color: #0B1120 !important; /* Solid base floor */
     }
@@ -47,7 +46,6 @@ st.markdown("""
         background: transparent !important; /* Invisible glass panels */
     }
 
-    /* 4. Background Layers: Static VAE Gradient */
     .stApp::before {
         content: "";
         position: fixed;
