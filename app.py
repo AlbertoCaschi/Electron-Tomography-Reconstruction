@@ -46,6 +46,8 @@ st.markdown("""
         background: transparent !important;
     }
 
+    /* --- 1. SMOOTH BACKGROUND TRANSITION --- */
+    /* Blue Background (Default) */
     .stApp::before {
         content: "";
         position: fixed;
@@ -56,7 +58,66 @@ st.markdown("""
             rgba(102, 213, 250, 0.40) 0%,
             transparent 75%
         );
-        opacity: 1 !important;
+        transition: opacity 0.8s ease-in-out;
+        opacity: 1; /* Visible by default */
+    }
+
+    /* Purple Background */
+    .stApp::after {
+        content: "";
+        position: fixed;
+        top: 0; left: 0; width: 100vw; height: 100vh;
+        pointer-events: none;
+        z-index: -1;
+        background-image: radial-gradient(ellipse 150% 150% at 0% 100%, 
+            rgba(167, 139, 250, 0.40) 0%,
+            transparent 75%
+        );
+        transition: opacity 0.8s ease-in-out;
+        opacity: 0; /* Hidden by default */
+    }
+
+    /* --- 2. RADIO BUTTON TO TAB CONVERSION --- */
+    /* Target ONLY the navigation radio by looking for the "VAE model" value */
+    div[data-testid="stRadio"]:has(input[value="VAE model"]) > div {
+        display: flex;
+        gap: 20px;
+    }
+
+    /* Hide the radio circles */
+    div[data-testid="stRadio"]:has(input[value="VAE model"]) div[data-baseweb="radio"] > div:first-child {
+        display: none !important;
+    }
+
+    /* Style the text wrapper to look like a tab */
+    div[data-testid="stRadio"]:has(input[value="VAE model"]) label[data-baseweb="radio"] {
+        cursor: pointer;
+        padding: 0 5px 8px 5px; 
+        border-bottom: 3px solid transparent;
+        transition: border-color 0.3s ease;
+    }
+
+    /* Tab Text Styling */
+    div[data-testid="stRadio"]:has(input[value="VAE model"]) label[data-baseweb="radio"] div {
+        font-size: 1.35rem !important;
+        font-weight: 600 !important;
+        color: #A0AEC0 !important;
+        transition: color 0.3s ease;
+    }
+
+    /* Hover State */
+    div[data-testid="stRadio"]:has(input[value="VAE model"]) label[data-baseweb="radio"]:hover div {
+        color: #ffffff !important;
+    }
+
+    /* Selected State: Text Color */
+    div[data-testid="stRadio"]:has(input[value="VAE model"]) label[data-baseweb="radio"]:has(input[aria-checked="true"]) div {
+        color: #65b9f8 !important;
+    }
+
+    /* Selected State: Underline */
+    div[data-testid="stRadio"]:has(input[value="VAE model"]) label[data-baseweb="radio"]:has(input[aria-checked="true"]) {
+        border-bottom: 3px solid #65b9f8 !important;
     }
 
     body:has(div[data-testid="stTabs"] button[role="tab"]:nth-of-type(2)[aria-selected="true"]) .stApp::before {
@@ -166,38 +227,7 @@ st.markdown("""
     
     div[data-testid="stRadio"] > label { font-weight: 600; color: #94A3B8; }
     div[data-testid="stSelectbox"] > label { font-weight: 600; color: #94A3B8; }
-    
-    /* 1. Base Tab Styling (Targeting the inner <p> tag for font size) */
-    div[data-testid="stTabs"] button p {
-        font-size: 1.35rem !important; /* Force the larger font size */
-        font-weight: 600 !important;   /* Force the bold weight */
-    }
-
-    /* 2. Base Tab Color and Transition */
-    div[data-testid="stTabs"] button {
-        color: #A0AEC0 !important; /* Default unselected color */
-        transition: color 0.3s ease;
-    }
-
-    /* 3. Hover State (Ensure both button and inner text change color) */
-    div[data-testid="stTabs"] button:hover,
-    div[data-testid="stTabs"] button:hover p {
-        color: #ffffff !important; /* Brilliant white on hover */
-    }
-
-    /* 4. Selected Tab Text Color */
-    div[data-testid="stTabs"] button[aria-selected="true"],
-    div[data-testid="stTabs"] button[aria-selected="true"] p {
-        color: #65b9f8 !important; /* Neon blue for the active text */
-    }
-
-    /* 5. Selected Tab Underline Color */
-    div[data-baseweb="tab-highlight"] {
-        background-color: #65b9f8 !important; /* Neon blue for the underline */
-        height: 3px !important; /* Slightly thicker underline */
-    }
             
-    /* 6. Action Button Text Color */
     div[data-testid="stButton"] button p,
     div[data-testid="stDownloadButton"] button p {
         color: #ffffff !important; 
@@ -297,27 +327,19 @@ selected_tab = st.radio(
 
 # Dynamically inject the background CSS based on the Python state
 if selected_tab == "Diffusion Model":
-    # Tab 2 background
+    # Crossfade to Purple
     st.html("""
         <style>
-        .stApp::before {
-            background-image: radial-gradient(ellipse 150% 150% at 0% 100%, 
-                rgba(167, 139, 250, 0.40) 0%,
-                transparent 75%
-            ) !important;
-        }
+        .stApp::before { opacity: 0 !important; }
+        .stApp::after { opacity: 1 !important; }
         </style>
     """)
 else:
-    # Tab 1 default background
+    # Crossfade to Blue
     st.html("""
         <style>
-        .stApp::before {
-            background-image: radial-gradient(ellipse 150% 150% at 0% 100%, 
-                rgba(102, 213, 250, 0.40) 0%,
-                transparent 75%
-            ) !important;
-        }
+        .stApp::before { opacity: 1 !important; }
+        .stApp::after { opacity: 0 !important; }
         </style>
     """)
 
