@@ -85,12 +85,12 @@ st.markdown("""
     }
 
     /* Hide the radio circles */
-    div[data-testid="stRadio"]:has(input[value="VAE model"]) label[data-baseweb="radio"] > div:first-child {
+    div[data-testid="stRadio"]:has(input[value="VAE Model"]) label[data-baseweb="radio"] > div:first-child {
         display: none !important;
     }
     
     /* Hide the native radio input element just in case */
-    div[data-testid="stRadio"]:has(input[value="VAE model"]) input[type="radio"] {
+    div[data-testid="stRadio"]:has(input[value="VAE Model"]) input[type="radio"] {
         display: none !important;
     }
 
