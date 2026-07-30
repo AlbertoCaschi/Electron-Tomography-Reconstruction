@@ -36,23 +36,18 @@ st.markdown("""
     }
             
     /* 1. Base Container Setup */
-    /* Target the main app wrapper to ensure no white flashes during loading */
+    /* Moving everything to the absolute root container of the Streamlit app */
     .stApp {
-        background-color: #0B1120 !important;
-    }
-
-    [data-testid="stAppViewContainer"] {
-        background-color: transparent !important; /* MUST be transparent to see pseudo-elements underneath */
+        background-color: transparent !important; 
         position: relative; 
         z-index: 0; 
     }
     
     /* 2. Default Background Layer (Tab 1: VAE) */
-    [data-testid="stAppViewContainer"]::before {
+    .stApp::before {
         content: "";
         position: fixed;
         top: 0; left: 0; width: 100vw; height: 100vh;
-        /* Combine the solid base color and the gradient on the same layer */
         background-color: #0B1120;
         background-image: radial-gradient(ellipse 150% 150% at 0% 100%, 
             rgba(102, 213, 250, 0.40) 0%,
@@ -65,11 +60,10 @@ st.markdown("""
     }
 
     /* 3. New Background Layer (Tab 2: Diffusion) */
-    [data-testid="stAppViewContainer"]::after {
+    .stApp::after {
         content: "";
         position: fixed;
         top: 0; left: 0; width: 100vw; height: 100vh;
-        /* Combine the solid base color and the gradient on the same layer */
         background-color: #0B1120;
         background-image: radial-gradient(ellipse 150% 150% at 100% 100%, 
             rgba(167, 139, 250, 0.40) 0%,
@@ -81,9 +75,14 @@ st.markdown("""
         pointer-events: none;
     }
 
-    /* 4. The Trigger: If the second tab is selected, swap the opacities! */
-    [data-testid="stAppViewContainer"]:has(button[role="tab"]:nth-child(2)[aria-selected="true"])::before {
+    /* 4. The Trigger: Using Streamlit's native tab ID suffix pattern */
+    /* -tab-1 is always the second tab in st.tabs() */
+    .stApp:has(button[role="tab"][id*="-tab-1"][aria-selected="true"])::before {
         opacity: 0 !important;
+    }
+    
+    .stApp:has(button[role="tab"][id*="-tab-1"][aria-selected="true"])::after {
+        opacity: 1 !important;
     }
     
     [data-testid="stAppViewContainer"]:has(button[role="tab"]:nth-child(2)[aria-selected="true"])::after {
