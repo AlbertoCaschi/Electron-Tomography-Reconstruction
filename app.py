@@ -35,49 +35,53 @@ st.markdown("""
         font-family: 'Inter', sans-serif;
     }
             
-    /* 1. Make all default Streamlit root containers completely transparent */
-    html, body, #root, .stApp, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {
+   /* 1. Base Container Setup: Transparent layers */
+    .stApp, 
+    [data-testid="stAppViewContainer"], 
+    [data-testid="stHeader"] {
         background-color: transparent !important;
     }
-    
-    /* 2. Default Background Layer (Tab 1: VAE) attached directly to the body */
-    body::before {
+
+    /* 2. Base Dark Color */
+    body {
+        background-color: #0B1120 !important;
+    }
+
+    /* 3. Gradient Layers (Attached to .stApp) */
+    .stApp::before,
+    .stApp::after {
         content: "";
         position: fixed;
         top: 0; left: 0; width: 100vw; height: 100vh;
-        background-color: #0B1120;
+        z-index: -1; /* Floats between the dark body and your transparent app */
+        pointer-events: none;
+        transition: opacity 1.2s ease-in-out;
+    }
+
+    /* Tab 1: VAE Gradient */
+    .stApp::before {
         background-image: radial-gradient(ellipse 150% 150% at 0% 100%, 
             rgba(102, 213, 250, 0.40) 0%,
             transparent 75%
         );
-        z-index: -2; /* Safely behind everything */
         opacity: 1;
-        transition: opacity 1.2s ease-in-out;
-        pointer-events: none;
     }
 
-    /* 3. New Background Layer (Tab 2: Diffusion) attached to the body */
-    body::after {
-        content: "";
-        position: fixed;
-        top: 0; left: 0; width: 100vw; height: 100vh;
-        background-color: #0B1120;
+    /* Tab 2: Diffusion Gradient */
+    .stApp::after {
         background-image: radial-gradient(ellipse 150% 150% at 100% 100%, 
             rgba(167, 139, 250, 0.40) 0%,
             transparent 75%
         );
-        z-index: -1;
-        opacity: 0; /* Hidden by default */
-        transition: opacity 1.2s ease-in-out;
-        pointer-events: none;
+        opacity: 0;
     }
 
-    /* 4. The Trigger: Body checks its descendants for the selected tab */
-    body:has(button[role="tab"][id*="-tab-1"][aria-selected="true"])::before {
+    /* 4. The Trigger: Using your original, reliable selector */
+    .stApp:has(div[data-testid="stTabs"] button:nth-of-type(2)[aria-selected="true"])::before {
         opacity: 0 !important;
     }
     
-    body:has(button[role="tab"][id*="-tab-1"][aria-selected="true"])::after {
+    .stApp:has(div[data-testid="stTabs"] button:nth-of-type(2)[aria-selected="true"])::after {
         opacity: 1 !important;
     }
             
