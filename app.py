@@ -35,32 +35,7 @@ st.markdown("""
         font-family: 'Inter', sans-serif;
     }
             
-/* 1. Global State Variables */
-    :root {
-        --vae-opacity: 1;
-        --diff-opacity: 0;
-    }
-
-    /* 2. Global State Trigger (The Game Changer) */
-    /* If the document detects the 2nd Streamlit tab is active, flip the variables globally */
-    :root:has(button[data-baseweb="tab"]:nth-of-type(2)[aria-selected="true"]) {
-        --vae-opacity: 0;
-        --diff-opacity: 1;
-    }
-
-    /* 3. Base UI Setup: Remove ALL interfering Streamlit backgrounds */
-    body {
-        background-color: #0B1120 !important; /* Solid base floor */
-    }
-    
-    .stApp, 
-    .main, 
-    [data-testid="stAppViewContainer"], 
-    [data-testid="stHeader"] {
-        background: transparent !important; /* Invisible glass panels */
-    }
-
-    /* 4. Background Layers */
+    /* Background Layers */
     .stApp::before,
     .stApp::after {
         content: "";
@@ -68,34 +43,28 @@ st.markdown("""
         top: 0; left: 0; width: 100vw; height: 100vh;
         pointer-events: none;
         transition: opacity 1.2s ease-in-out;
-        z-index: -1; /* Floats safely between the body color and your text */
-    }
-
-    /* Tab 1: VAE Gradient */
-    .stApp::before {
-        background-image: radial-gradient(ellipse 150% 150% at 0% 100%, 
-            rgba(102, 213, 250, 0.40) 0%,
-            transparent 75%
-        );
-        opacity: var(--vae-opacity) !important;
-    }
-
-    /* Tab 2: Diffusion Gradient */
-    .stApp::after {
-        background-image: radial-gradient(ellipse 150% 150% at 100% 100%, 
-            rgba(167, 139, 250, 0.40) 0%,
-            transparent 75%
-        );
-        opacity: var(--diff-opacity) !important;
-    }
-
-    /* 4. The Trigger: Using your original, reliable selector */
-    .stApp:has(div[data-testid="stTabs"] button:nth-of-type(2)[aria-selected="true"])::before {
-        opacity: 0 !important;
+        z-index: -1;
+        opacity: 0; /* default: hidden */
     }
     
+    .stApp::before {
+        background-image: radial-gradient(ellipse 150% 150% at 0% 100%,
+            rgba(102, 213, 250, 0.40) 0%, transparent 75%);
+    }
+    
+    .stApp::after {
+        background-image: radial-gradient(ellipse 150% 150% at 100% 100%,
+            rgba(167, 139, 250, 0.40) 0%, transparent 75%);
+    }
+    
+    /* Tab 1 selected -> show ::before */
+    .stApp:has(div[data-testid="stTabs"] button:first-of-type[aria-selected="true"])::before {
+        opacity: 1;
+    }
+    
+    /* Tab 2 selected -> show ::after */
     .stApp:has(div[data-testid="stTabs"] button:nth-of-type(2)[aria-selected="true"])::after {
-        opacity: 1 !important;
+        opacity: 1;
     }
             
     [data-testid="stHeader"] {
