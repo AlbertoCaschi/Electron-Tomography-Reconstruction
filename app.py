@@ -35,10 +35,10 @@ st.markdown("""
         font-family: 'Inter', sans-serif;
     }
             
-    /* 1. Base Container Setup */
     [data-testid="stAppViewContainer"] {
         background-color: #0B1120; 
-        z-index: 0; /* Establishes a stacking context for backgrounds */
+        position: relative;
+        z-index: 0; 
     }
     
     /* 2. Default Background Layer (Tab 1: VAE) */
@@ -73,14 +73,14 @@ st.markdown("""
     }
 
     /* 4. The Trigger: If the second tab is selected, swap the opacities! */
-    [data-testid="stAppViewContainer"]:has(div[data-testid="stTabs"] button:nth-of-type(2)[aria-selected="true"])::before {
-        opacity: 0;
+    /* Added [data-baseweb="tab"] for safety and !important to force repaints */
+    [data-testid="stAppViewContainer"]:has(div[data-testid="stTabs"] button[data-baseweb="tab"]:nth-of-type(2)[aria-selected="true"])::before {
+        opacity: 0 !important;
     }
     
-    [data-testid="stAppViewContainer"]:has(div[data-testid="stTabs"] button:nth-of-type(2)[aria-selected="true"])::after {
-        opacity: 1;
+    [data-testid="stAppViewContainer"]:has(div[data-testid="stTabs"] button[data-baseweb="tab"]:nth-of-type(2)[aria-selected="true"])::after {
+        opacity: 1 !important;
     }
-    
             
     [data-testid="stHeader"] {
         background: transparent;
@@ -577,7 +577,7 @@ with tab2:
         try:
             arch_image = Image.open("assets/cddpm_architecture.png")
 
-            spacer_left, img_col, spacer_right = st.columns([1, 4, 1])
+            spacer_left, img_col, spacer_right = st.columns([1, 7, 1])
             with img_col:
                 st.image(arch_image, caption="U-Net cDDPM model architecture", use_container_width=True)
 
