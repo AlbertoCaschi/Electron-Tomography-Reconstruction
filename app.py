@@ -287,10 +287,41 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# --- NEW NAVIGATION BAR ---
-tab1, tab2 = st.tabs(["VAE model", "Diffusion Model"])
+# NAVIGATION BAR
+selected_tab = st.radio(
+    "Select Model",
+    ["VAE Model", "Diffusion Model"],
+    horizontal=True,
+    label_visibility="collapsed"
+)
 
-with tab1:
+# Dynamically inject the background CSS based on the Python state
+if selected_tab == "Diffusion Model":
+    # Tab 2 background
+    st.html("""
+        <style>
+        .stApp::before {
+            background-image: radial-gradient(ellipse 150% 150% at 0% 100%, 
+                rgba(167, 139, 250, 0.40) 0%,
+                transparent 75%
+            ) !important;
+        }
+        </style>
+    """)
+else:
+    # Tab 1 default background
+    st.html("""
+        <style>
+        .stApp::before {
+            background-image: radial-gradient(ellipse 150% 150% at 0% 100%, 
+                rgba(102, 213, 250, 0.40) 0%,
+                transparent 75%
+            ) !important;
+        }
+        </style>
+    """)
+
+if selected_tab == "VAE Model":
     # Overview
     col_intro, col_arch = st.columns(2, gap="large")
 
@@ -537,7 +568,7 @@ with tab1:
         else:
             st.warning("Please select or upload a valid .mrc file.")
 
-with tab2:
+elif selected_tab == "Diffusion Model":
 
     # Overview
     col_intro, col_arch = st.columns(2, gap="large")
