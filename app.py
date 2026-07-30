@@ -35,27 +35,40 @@ st.markdown("""
         font-family: 'Inter', sans-serif;
     }
             
-   /* 1. Base Container Setup: Transparent layers */
+/* 1. Global State Variables */
+    :root {
+        --vae-opacity: 1;
+        --diff-opacity: 0;
+    }
+
+    /* 2. Global State Trigger (The Game Changer) */
+    /* If the document detects the 2nd Streamlit tab is active, flip the variables globally */
+    :root:has(button[data-baseweb="tab"]:nth-of-type(2)[aria-selected="true"]) {
+        --vae-opacity: 0;
+        --diff-opacity: 1;
+    }
+
+    /* 3. Base UI Setup: Remove ALL interfering Streamlit backgrounds */
+    body {
+        background-color: #0B1120 !important; /* Solid base floor */
+    }
+    
     .stApp, 
+    .main, 
     [data-testid="stAppViewContainer"], 
     [data-testid="stHeader"] {
-        background-color: transparent !important;
+        background: transparent !important; /* Invisible glass panels */
     }
 
-    /* 2. Base Dark Color */
-    body {
-        background-color: #0B1120 !important;
-    }
-
-    /* 3. Gradient Layers (Attached to .stApp) */
+    /* 4. Background Layers */
     .stApp::before,
     .stApp::after {
         content: "";
         position: fixed;
         top: 0; left: 0; width: 100vw; height: 100vh;
-        z-index: -1; /* Floats between the dark body and your transparent app */
         pointer-events: none;
         transition: opacity 1.2s ease-in-out;
+        z-index: -1; /* Floats safely between the body color and your text */
     }
 
     /* Tab 1: VAE Gradient */
@@ -64,7 +77,7 @@ st.markdown("""
             rgba(102, 213, 250, 0.40) 0%,
             transparent 75%
         );
-        opacity: 1;
+        opacity: var(--vae-opacity) !important;
     }
 
     /* Tab 2: Diffusion Gradient */
@@ -73,7 +86,7 @@ st.markdown("""
             rgba(167, 139, 250, 0.40) 0%,
             transparent 75%
         );
-        opacity: 0;
+        opacity: var(--diff-opacity) !important;
     }
 
     /* 4. The Trigger: Using your original, reliable selector */
