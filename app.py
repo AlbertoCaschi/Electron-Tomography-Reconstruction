@@ -59,11 +59,12 @@ st.markdown("""
         opacity: 1 !important;
     }
 
-    body:has(div[data-testid="stTabs"] button:nth-child(2)[aria-selected="true"]) .stApp::before {
+    body:has(div[data-testid="stTabs"] button[role="tab"]:nth-of-type(2)[aria-selected="true"]) .stApp::before {
         background-image: radial-gradient(ellipse 150% 150% at 0% 100%, 
             rgba(167, 139, 250, 0.40) 0%,
             transparent 75%
         ) !important;
+        transition: background-image 0.5s ease-in-out;
     }
             
     [data-testid="stHeader"] {
