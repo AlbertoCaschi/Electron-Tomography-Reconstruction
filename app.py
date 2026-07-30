@@ -36,14 +36,14 @@ st.markdown("""
     }
 
     body {
-        background-color: #0B1120 !important; /* Solid base floor */
+        background-color: #0B1120 !important;
     }
     
     .stApp, 
     .main, 
     [data-testid="stAppViewContainer"], 
     [data-testid="stHeader"] {
-        background: transparent !important; /* Invisible glass panels */
+        background: transparent !important;
     }
 
     .stApp::before {
@@ -51,12 +51,19 @@ st.markdown("""
         position: fixed;
         top: 0; left: 0; width: 100vw; height: 100vh;
         pointer-events: none;
-        z-index: -1; /* Floats safely between the body color and your text */
+        z-index: -1;
         background-image: radial-gradient(ellipse 150% 150% at 0% 100%, 
             rgba(102, 213, 250, 0.40) 0%,
             transparent 75%
         );
         opacity: 1 !important;
+    }
+
+    body:has(div[data-testid="stTabs"] button:nth-child(2)[aria-selected="true"]) .stApp::before {
+        background-image: radial-gradient(ellipse 150% 150% at 0% 100%, 
+            rgba(167, 139, 250, 0.40) 0%,
+            transparent 75%
+        ) !important;
     }
             
     [data-testid="stHeader"] {
