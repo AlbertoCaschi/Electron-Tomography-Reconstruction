@@ -35,6 +35,18 @@ st.markdown("""
         font-family: 'Inter', sans-serif;
     }
             
+        /* Base UI Setup: keep Streamlit's own backgrounds transparent so our gradient shows through */
+    body {
+        background-color: #0B1120 !important;
+    }
+
+    .stApp, 
+    .main, 
+    [data-testid="stAppViewContainer"], 
+    [data-testid="stHeader"] {
+        background: transparent !important;
+    }
+
     /* Background Layers */
     .stApp::before,
     .stApp::after {
@@ -44,31 +56,25 @@ st.markdown("""
         pointer-events: none;
         transition: opacity 1.2s ease-in-out;
         z-index: -1;
-        opacity: 0; /* default: hidden */
+        opacity: 0;
     }
-    
+
     .stApp::before {
         background-image: radial-gradient(ellipse 150% 150% at 0% 100%,
             rgba(102, 213, 250, 0.40) 0%, transparent 75%);
     }
-    
+
     .stApp::after {
         background-image: radial-gradient(ellipse 150% 150% at 100% 100%,
             rgba(167, 139, 250, 0.40) 0%, transparent 75%);
     }
-    
-    /* Tab 1 selected -> show ::before */
+
     .stApp:has(div[data-testid="stTabs"] button:first-of-type[aria-selected="true"])::before {
         opacity: 1;
     }
-    
-    /* Tab 2 selected -> show ::after */
+
     .stApp:has(div[data-testid="stTabs"] button:nth-of-type(2)[aria-selected="true"])::after {
         opacity: 1;
-    }
-            
-    [data-testid="stHeader"] {
-        background: transparent;
     }
     
     .subtitle { 
