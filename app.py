@@ -78,19 +78,19 @@ st.markdown("""
     }
 
     /* --- 2. RADIO BUTTON TO TAB CONVERSION --- */
-    /* Target ONLY the navigation radio by looking for the "VAE model" value */
-    div[data-testid="stRadio"]:has(input[value="VAE model"]) > div {
+    /* Target ONLY the navigation radio by looking for the "VAE Model" value */
+    div[data-testid="stRadio"]:has(input[value="VAE Model"]) > div {
         display: flex;
         gap: 20px;
     }
 
     /* Hide the radio circles */
-    div[data-testid="stRadio"]:has(input[value="VAE model"]) div[data-baseweb="radio"] > div:first-child {
+    div[data-testid="stRadio"]:has(input[value="VAE Model"]) div[data-baseweb="radio"] > div:first-child {
         display: none !important;
     }
 
     /* Style the text wrapper to look like a tab */
-    div[data-testid="stRadio"]:has(input[value="VAE model"]) label[data-baseweb="radio"] {
+    div[data-testid="stRadio"]:has(input[value="VAE Model"]) label[data-baseweb="radio"] {
         cursor: pointer;
         padding: 0 5px 8px 5px; 
         border-bottom: 3px solid transparent;
@@ -98,7 +98,7 @@ st.markdown("""
     }
 
     /* Tab Text Styling */
-    div[data-testid="stRadio"]:has(input[value="VAE model"]) label[data-baseweb="radio"] div {
+    div[data-testid="stRadio"]:has(input[value="VAE Model"]) label[data-baseweb="radio"] div {
         font-size: 1.35rem !important;
         font-weight: 600 !important;
         color: #A0AEC0 !important;
@@ -106,17 +106,17 @@ st.markdown("""
     }
 
     /* Hover State */
-    div[data-testid="stRadio"]:has(input[value="VAE model"]) label[data-baseweb="radio"]:hover div {
+    div[data-testid="stRadio"]:has(input[value="VAE Model"]) label[data-baseweb="radio"]:hover div {
         color: #ffffff !important;
     }
 
     /* Selected State: Text Color */
-    div[data-testid="stRadio"]:has(input[value="VAE model"]) label[data-baseweb="radio"]:has(input[aria-checked="true"]) div {
+    div[data-testid="stRadio"]:has(input[value="VAE Model"]) label[data-baseweb="radio"]:has(input[aria-checked="true"]) div {
         color: #65b9f8 !important;
     }
 
     /* Selected State: Underline */
-    div[data-testid="stRadio"]:has(input[value="VAE model"]) label[data-baseweb="radio"]:has(input[aria-checked="true"]) {
+    div[data-testid="stRadio"]:has(input[value="VAE Model"]) label[data-baseweb="radio"]:has(input[aria-checked="true"]) {
         border-bottom: 3px solid #65b9f8 !important;
     }
 
