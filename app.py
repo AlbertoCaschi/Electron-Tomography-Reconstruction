@@ -35,9 +35,15 @@ st.markdown("""
         font-family: 'Inter', sans-serif;
     }
             
+    /* 1. Base Container Setup */
+    /* Target the main app wrapper to ensure no white flashes during loading */
+    .stApp {
+        background-color: #0B1120 !important;
+    }
+
     [data-testid="stAppViewContainer"] {
-        background-color: #0B1120; 
-        position: relative;
+        background-color: transparent !important; /* MUST be transparent to see pseudo-elements underneath */
+        position: relative; 
         z-index: 0; 
     }
     
@@ -46,6 +52,8 @@ st.markdown("""
         content: "";
         position: fixed;
         top: 0; left: 0; width: 100vw; height: 100vh;
+        /* Combine the solid base color and the gradient on the same layer */
+        background-color: #0B1120;
         background-image: radial-gradient(ellipse 150% 150% at 0% 100%, 
             rgba(102, 213, 250, 0.40) 0%,
             transparent 75%
@@ -57,28 +65,28 @@ st.markdown("""
     }
 
     /* 3. New Background Layer (Tab 2: Diffusion) */
-    /* I shifted this one to the bottom-left (0% 100%) and gave it a soft purple/magenta tint to differentiate the model */
     [data-testid="stAppViewContainer"]::after {
         content: "";
         position: fixed;
         top: 0; left: 0; width: 100vw; height: 100vh;
+        /* Combine the solid base color and the gradient on the same layer */
+        background-color: #0B1120;
         background-image: radial-gradient(ellipse 150% 150% at 100% 100%, 
             rgba(167, 139, 250, 0.40) 0%,
             transparent 75%
         );
         z-index: -1;
-        opacity: 0; /* Hidden by default */
+        opacity: 0; 
         transition: opacity 1.2s ease-in-out;
         pointer-events: none;
     }
 
     /* 4. The Trigger: If the second tab is selected, swap the opacities! */
-    /* Added [data-baseweb="tab"] for safety and !important to force repaints */
-    [data-testid="stAppViewContainer"]:has(div[data-testid="stTabs"] button[data-baseweb="tab"]:nth-of-type(2)[aria-selected="true"])::before {
+    [data-testid="stAppViewContainer"]:has(button[role="tab"]:nth-child(2)[aria-selected="true"])::before {
         opacity: 0 !important;
     }
     
-    [data-testid="stAppViewContainer"]:has(div[data-testid="stTabs"] button[data-baseweb="tab"]:nth-of-type(2)[aria-selected="true"])::after {
+    [data-testid="stAppViewContainer"]:has(button[role="tab"]:nth-child(2)[aria-selected="true"])::after {
         opacity: 1 !important;
     }
             
