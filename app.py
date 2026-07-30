@@ -107,6 +107,112 @@ st.markdown("""
         transition: opacity 0.8s ease-in-out;
         opacity: 0; /* Hidden by default */
     }
+            
+    [data-testid="stHeader"] {
+        background: transparent;
+    }
+    
+    .subtitle { 
+        font-size: 1.15rem; 
+        color: #A0AEC0; 
+        margin-bottom: 2rem; 
+        line-height: 1.6; 
+        animation: fadeIn 1.2s ease-in-out;
+    }
+    
+    .glass-card {
+        background: rgba(17, 25, 40, 0.4);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        padding: 24px;
+        margin-bottom: 1.5rem;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        animation: fadeIn 1.5s ease-in-out;
+    }
+    .glass-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+    }
+    
+    .section-header { 
+        font-size: 1.4rem; 
+        font-weight: 600; 
+        color: #E2E8F0; 
+        margin-bottom: 1rem; 
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    
+    .info-box { 
+        background: linear-gradient(90deg, rgba(30,58,138,0.3) 0%, rgba(15,23,42,0.1) 100%); 
+        border-left: 4px solid #3B82F6; 
+        padding: 1.2rem; 
+        border-radius: 6px; 
+        margin-bottom: 1.5rem; 
+        color: #E2E8F0;
+    }
+            
+    .title-wrapper {
+        position: relative;
+        overflow: hidden;
+        padding: 10px 0;
+        border-radius: 8px;
+    }
+
+    .title-wrapper::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -30%;
+        width: 15%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(0, 242, 254, 0.15), rgba(79, 172, 254, 0.25), transparent);
+        transform: skewX(-25deg);
+        animation: dataSweep 2.5s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+        animation-delay: 1s;
+        pointer-events: none;
+        z-index: 0;
+    }
+
+    .main-title { 
+        position: relative;
+        z-index: 1;
+        font-size: 2.8rem; 
+        font-weight: 800; 
+        background: linear-gradient(90deg, #4facfe 0%, #00f2fe 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 0.2rem; 
+        animation: fadeIn 1s ease-in-out;
+    }
+
+    @keyframes dataSweep {
+        0% { left: -20%; opacity: 0; }
+        10% { opacity: 1; }
+        80% { opacity: 1; }
+        100% { left: 120%; opacity: 0; }
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(15px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    @keyframes pulseBorder {
+        0% { border-left-color: #3B82F6; }
+        50% { border-left-color: #60A5FA; box-shadow: -4px 0px 10px rgba(59, 130, 246, 0.2); }
+        100% { border-left-color: #3B82F6; }
+    }
+    
+    div[data-testid="stRadio"] > label { font-weight: 600; color: #94A3B8; }
+    div[data-testid="stSelectbox"] > label { font-weight: 600; color: #94A3B8; }
+            
+    div[data-testid="stButton"] button p,
+    div[data-testid="stDownloadButton"] button p {
+        color: #ffffff !important; 
+        font-weight: 600 !important;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -195,15 +301,15 @@ st.markdown(
 # --- NEW NAVIGATION BAR (Replaces st.radio) ---
 selected_tab = st.pills(
     "Select Model",
-    ["VAE model", "Diffusion Model"],
+    ["VAE Model", "Diffusion Model"],
     selection_mode="single",
-    default="VAE model",
+    default="VAE Model",
     label_visibility="collapsed"
 )
 
 # Safeguard: if the user un-clicks the active pill, default back to VAE
 if selected_tab is None:
-    selected_tab = "VAE model"
+    selected_tab = "VAE Model"
 
 # Dynamically inject the background CSS based on the Python state
 if selected_tab == "Diffusion Model":
