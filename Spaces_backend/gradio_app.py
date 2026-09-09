@@ -38,13 +38,16 @@ print("Model loaded successfully!")
 def predict(mrc_file, config_selection):
     # Map the config selection string back to your dictionary structure
     config_map = {
-        "±50° Wedge (5° Step)": {'range': (-50, 50), 'step': 5},
-        "±50° Wedge (10° Step)": {'range': (-50, 50), 'step': 10},
-        "±50° Wedge (20° Step)": {'range': (-50, 50), 'step': 20},
-        "±40° Wedge (5° Step)": {'range': (-40, 40), 'step': 5},
-        "±40° Wedge (10° Step)": {'range': (-40, 40), 'step': 10},
-        "±40° Wedge (20° Step)": {'range': (-40, 40), 'step': 20}
-    }
+                "±50° Wedge (5° Step)": {'range': (-50, 50), 'step': 5},
+                "±50° Wedge (10° Step)": {'range': (-50, 50), 'step': 10},
+                "±50° Wedge (20° Step)": {'range': (-50, 50), 'step': 20},
+                "±40° Wedge (5° Step)": {'range': (-40, 40), 'step': 5},
+                "±40° Wedge (10° Step)": {'range': (-40, 40), 'step': 10},
+                "±40° Wedge (20° Step)": {'range': (-40, 40), 'step': 20},
+                "±30° Wedge (5° Step)": {'range': (-30, 30), 'step': 5},
+                "±30° Wedge (10° Step)": {'range': (-30, 30), 'step': 10},
+                "±30° Wedge (15° Step)": {'range': (-30, 30), 'step': 15}
+            }
     acquisition_config = config_map.get(config_selection, {'range': (-50, 50), 'step': 5})
     
     output_image_path = "/tmp/full_reconstruction_result.png"

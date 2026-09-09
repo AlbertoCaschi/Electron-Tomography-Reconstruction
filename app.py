@@ -703,7 +703,10 @@ elif selected_tab == "Diffusion Model":
                 "±50° Wedge (20° Step)",
                 "±40° Wedge (5° Step)",
                 "±40° Wedge (10° Step)",
-                "±40° Wedge (20° Step)"
+                "±40° Wedge (20° Step)",
+                "±30° Wedge (5° Step)",
+                "±30° Wedge (10° Step)",
+                "±30° Wedge (15° Step)"
             ],
             key="sb_wedge_tab2"
         )
@@ -714,7 +717,10 @@ elif selected_tab == "Diffusion Model":
             "±50° Wedge (20° Step)": {'range': (-50, 50), 'step': 20},
             "±40° Wedge (5° Step)": {'range': (-40, 40), 'step': 5},
             "±40° Wedge (10° Step)": {'range': (-40, 40), 'step': 10},
-            "±40° Wedge (20° Step)": {'range': (-40, 40), 'step': 20}
+            "±40° Wedge (20° Step)": {'range': (-40, 40), 'step': 20},
+            "±30° Wedge (5° Step)": {'range': (-30, 30), 'step': 5},
+            "±30° Wedge (10° Step)": {'range': (-30, 30), 'step': 10},
+            "±30° Wedge (15° Step)": {'range': (-30, 30), 'step': 15}
         }
         acquisition_config = config_map[config_choice]
 
