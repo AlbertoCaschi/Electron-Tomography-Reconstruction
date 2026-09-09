@@ -1,5 +1,5 @@
 #contourpy
-cycler
+#cycler
 diffusers
 filelock
 fonttools
