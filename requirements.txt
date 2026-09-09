@@ -1,5 +1,5 @@
-#contourpy
-#cycler
+contourpy==1.3.0
+cycler
 diffusers
 filelock
 fonttools
