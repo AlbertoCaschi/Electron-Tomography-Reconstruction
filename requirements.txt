@@ -1,3 +1,6 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+--extra-index-url https://download.pytorch.org/whl/cu126
+
 contourpy
 cycler
 diffusers
@@ -29,11 +32,11 @@ spaces
 streamlit
 sympy
 tifffile
---extra-index-url https://download.pytorch.org/whl/cpu
---index-url https://download.pytorch.org/whl/cu126; platform_system == "Windows"
-torch == 2.8.0; platform_system == "Darwin"
-torch == 2.8.0+cpu; platform_system == "Linux"
 torchvision
 tqdm
 typing_extensions
 zipp
+
+torch == 2.8.0 ; platform_system == "Darwin"
+torch == 2.8.0+cpu ; platform_system == "Linux"
+torch == 2.8.0+cu126 ; platform_system == "Windows"
