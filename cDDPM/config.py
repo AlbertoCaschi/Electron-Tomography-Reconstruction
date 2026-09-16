@@ -3,6 +3,7 @@ import os
 CONFIG = {
     "data": {
         "dataset_path": "./cDDPM/dataset/synthetic_raw/",
+        "noise_threshold" : 0,
         "image_dims": (368, 368),                          # 362x362 -> 368x368: the model can reduce dimensions properly (padding)
         "train_samples": 2500,
         "val_samples": 500
@@ -47,6 +48,10 @@ CONFIG = {
         "output_dir": "./cDDPM/checkpoints/",
         "log_dir": "./cDDPM/logs/",
         "resume_checkpoint": None
+    },
+
+    "inference" : {
+        "use_projector_guidance" : False
     }
 }
 

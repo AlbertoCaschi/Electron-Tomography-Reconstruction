@@ -1,6 +1,30 @@
 import torch
 import torch.nn as nn
+import numpy as np
 import math
+
+
+def apply_projector_guidance(x_0_pred, true_sinogram, physics_op, angles, lambda_step=1.0):
+    """
+    Enforces data consistency by taking a gradient step towards the true measured sinogram.
+    """
+    device = x_0_pred.device
+    
+    x_0_np = torch.clamp(x_0_pred.squeeze(), -1.0, 1.0)
+    x_0_np = ((x_0_np + 1.0) / 2.0).cpu().numpy()
+    
+    sim_sinogram = physics_op.forward_project(x_0_np, angles)
+    
+    error_sinogram = true_sinogram - sim_sinogram
+    
+    error_img = physics_op.filtered_back_project(error_sinogram, angles)
+    
+    x_0_updated_np = x_0_np + (lambda_step * error_img)
+    
+    x_0_updated_np = np.clip(x_0_updated_np, 0.0, 1.0)
+    x_0_updated_tensor = torch.from_numpy((x_0_updated_np * 2.0) - 1.0)
+    
+    return x_0_updated_tensor.unsqueeze(0).unsqueeze(0).to(device, dtype=torch.float32)
 
 
 def _extract(a, t, x_shape):
@@ -111,7 +135,7 @@ class GaussianDiffusion(nn.Module):
         return x_t
 
     @torch.no_grad()
-    def p_sample(self, model, x_t, x_fbp, t, t_index):
+    def p_sample(self, model, x_t, x_fbp, t, t_index, true_sinogram=None, physics_op=None, angles=None):
         """
         The Reverse Process (Single Step) using intermediate x_0 clipping.
         """
@@ -126,6 +150,16 @@ class GaussianDiffusion(nn.Module):
         
         # Clamp the predicted x_0 to strictly remain in grayscale bounds
         x_0_pred = torch.clamp(x_0_pred, min=-1.0, max=1.0)
+
+        # --- NEW: Data Consistency Projector ---
+        if true_sinogram is not None and physics_op is not None and angles is not None:
+            x_0_pred = apply_projector_guidance(
+                x_0_pred, 
+                true_sinogram, 
+                physics_op, 
+                angles, 
+                lambda_step=0.05
+            )
         
         # Compute the posterior mean using the CLAMPED x_0
         posterior_mean_coef1_t = _extract(self.posterior_mean_coef1, t, x_t.shape)
@@ -143,7 +177,7 @@ class GaussianDiffusion(nn.Module):
 
 
     @torch.no_grad()
-    def p_sample_loop(self, model, x_fbp):
+    def p_sample_loop(self, model, x_fbp, true_sinogram=None, physics_op=None, angles=None):
         """
         The Complete Reverse Process: Generates a sample from pure noise given x_fbp.
         (Primarily used for inference/validation).
@@ -164,6 +198,6 @@ class GaussianDiffusion(nn.Module):
         # Iterate backwards from T-1 down to 0
         for i in reversed(range(self.num_timesteps)):
             t = torch.full((b,), i, device=device, dtype=torch.long)
-            x_t = self.p_sample(model, x_t, x_fbp, t, i)
+            x_t = self.p_sample(model, x_t, x_fbp, t, i, true_sinogram, physics_op, angles)
             
         return x_t

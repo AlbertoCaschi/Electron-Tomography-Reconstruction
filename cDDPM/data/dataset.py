@@ -7,6 +7,7 @@ from torch.utils.data import Dataset
 import mrcfile
 
 from cDDPM.physics.operators import TomographyOperator
+from cDDPM.config import CONFIG
 
 
 class TomographyDataset(Dataset):
@@ -107,6 +108,10 @@ class TomographyDataset(Dataset):
         # normalize
         x_0_normalized = self._normalize_to_ddpm_range(x_0_padded)
         x_fbp_normalized = self._normalize_to_ddpm_range(x_fbp_np)
+
+        # thresholding
+        threshold = CONFIG["data"]["noise_threshold"] #any pixel in the image with brightness less than ..% is set to 0
+        x_0 = np.where(x_0 < threshold, 0.0, x_0)
         
         # tensor conversion [1, H, W]
         x_0_tensor = torch.from_numpy(x_0_normalized).unsqueeze(0)
