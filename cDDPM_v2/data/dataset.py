@@ -7,6 +7,7 @@ from torch.utils.data import Dataset
 import mrcfile
 
 from cDDPM.physics.operators import TomographyOperator
+from cDDPM.config import CONFIG
 
 
 class TomographyDataset(Dataset):
@@ -44,14 +45,19 @@ class TomographyDataset(Dataset):
     def __len__(self):
         return len(self.file_paths) * self.views_per_object
 
-    def _normalize_to_ddpm_range(self, image):
+    def _normalize_and_threshold(self, image, threshold=0.0):
+        """Fixes the DDPM range bug by thresholding in [0, 1] space first."""
         img_min = image.min()
         img_max = image.max()
         
         if img_max - img_min < 1e-6:
-            return np.zeros_like(image)
+            return np.full_like(image, -1.0)
             
         img_normalized = (image - img_min) / (img_max - img_min)
+        
+        if threshold > 0:
+            img_normalized = np.where(img_normalized < threshold, 0.0, img_normalized)
+            
         img_scaled = (img_normalized * 2.0) - 1.0
         return img_scaled
 
@@ -104,12 +110,18 @@ class TomographyDataset(Dataset):
         limited_sinogram = self.physics_operator.forward_project(x_0_padded, angles_deg)
         x_fbp_np = self.physics_operator.filtered_back_project(limited_sinogram, angles_deg)
         
-        # normalize
-        x_0_normalized = self._normalize_to_ddpm_range(x_0_padded)
-        x_fbp_normalized = self._normalize_to_ddpm_range(x_fbp_np)
+        # Apply normalization and thresholding correctly
+        threshold = self.config["data"]["noise_threshold"]
+        x_0_processed = self._normalize_and_threshold(x_0_padded, threshold)
+        x_fbp_processed = self._normalize_and_threshold(x_fbp_np, threshold=0.0)
         
         # tensor conversion [1, H, W]
-        x_0_tensor = torch.from_numpy(x_0_normalized).unsqueeze(0)
-        x_fbp_tensor = torch.from_numpy(x_fbp_normalized).unsqueeze(0)
+        x_0_tensor = torch.from_numpy(x_0_processed).unsqueeze(0)
+        x_fbp_tensor = torch.from_numpy(x_fbp_processed).unsqueeze(0)
         
-        return x_0_tensor, x_fbp_tensor
+        # Extract geometry config
+        current_max_tilt = np.abs(angles_deg).max()
+        num_projections = len(angles_deg)
+        acq_config = torch.tensor([current_max_tilt, num_projections], dtype=torch.float32)
+        
+        return x_0_tensor, x_fbp_tensor, acq_config

@@ -58,37 +58,6 @@ st.markdown("""
             rgba(102, 213, 250, 0.40) 0%,
             transparent 75%
         );
-        transition: opacity 0.5s ease-in-out;
-        opacity: 1; /* Visible by default */
-    }
-
-    /* Purple Background */
-    .stApp::after {
-        content: "";
-        position: fixed;
-        top: 0; left: 0; width: 100vw; height: 100vh;
-        pointer-events: none;
-        z-index: -1;
-        background-image: radial-gradient(ellipse 150% 150% at 100% 100%, 
-            rgba(167, 139, 250, 0.40) 0%,
-            transparent 75%
-        );
-        transition: opacity 0.5s ease-in-out;
-        opacity: 0; /* Hidden by default */
-    }
-
-    /* --- 1. SMOOTH BACKGROUND TRANSITION --- */
-    /* Blue Background (Default) */
-    .stApp::before {
-        content: "";
-        position: fixed;
-        top: 0; left: 0; width: 100vw; height: 100vh;
-        pointer-events: none;
-        z-index: -1;
-        background-image: radial-gradient(ellipse 150% 150% at 0% 100%, 
-            rgba(102, 213, 250, 0.40) 0%,
-            transparent 75%
-        );
         transition: opacity 0.8s ease-in-out;
         opacity: 1; /* Visible by default */
     }
@@ -100,8 +69,23 @@ st.markdown("""
         top: 0; left: 0; width: 100vw; height: 100vh;
         pointer-events: none;
         z-index: -1;
-        background-image: radial-gradient(ellipse 150% 150% at 100% 100%, 
+        background-image: radial-gradient(ellipse 150% 150% at 50% 100%, 
             rgba(167, 139, 250, 0.40) 0%,
+            transparent 75%
+        );
+        transition: opacity 0.8s ease-in-out;
+        opacity: 0; /* Hidden by default */
+    }
+
+    /* Red Background */
+    [data-testid="stAppViewContainer"]::before {
+        content: "";
+        position: fixed;
+        top: 0; left: 0; width: 100vw; height: 100vh;
+        pointer-events: none;
+        z-index: -1;
+        background-image: radial-gradient(ellipse 150% 150% at 100% 100%, 
+            rgba(48, 10, 10, 0.40) 0%,
             transparent 75%
         );
         transition: opacity 0.8s ease-in-out;
@@ -301,7 +285,7 @@ st.markdown(
 # --- NEW NAVIGATION BAR (Replaces st.radio) ---
 selected_tab = st.pills(
     "Select Model",
-    ["VAE Model", "Diffusion Model"],
+    ["VAE Model", "Diffusion Model", "Improved Diffusion Model"],
     selection_mode="single",
     default="VAE Model",
     label_visibility="collapsed"
@@ -318,14 +302,25 @@ if selected_tab == "Diffusion Model":
         <style>
         .stApp::before { opacity: 0 !important; }
         .stApp::after { opacity: 1 !important; }
+        [data-testid="stAppViewContainer"]::before { opacity: 0 !important; }
+        </style>
+    """)
+elif selected_tab == "Improved Diffusion Model":
+    # Crossfade to Red
+    st.html("""
+        <style>
+        .stApp::before { opacity: 0 !important; }
+        .stApp::after { opacity: 0 !important; }
+        [data-testid="stAppViewContainer"]::before { opacity: 1 !important; }
         </style>
     """)
 else:
-    # Crossfade to Blue
+    # Crossfade to Blue (Default)
     st.html("""
         <style>
         .stApp::before { opacity: 1 !important; }
         .stApp::after { opacity: 0 !important; }
+        [data-testid="stAppViewContainer"]::before { opacity: 0 !important; }
         </style>
     """)
 
@@ -865,3 +860,9 @@ elif selected_tab == "Diffusion Model":
                     st.info("System ready. Configure parameters on the left and initialize reconstruction.")
         else:
             st.warning("Please select or upload a valid .mrc file.")
+
+elif selected_tab == "Improved Diffusion Model":
+
+    st.markdown("""
+                Coming soon!
+                """)

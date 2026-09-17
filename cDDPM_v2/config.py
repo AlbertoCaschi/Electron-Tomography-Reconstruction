@@ -3,14 +3,15 @@ import os
 CONFIG = {
     "data": {
         "dataset_path": "./cDDPM/dataset/synthetic_raw/",
+        "noise_threshold" : 0.3,
         "image_dims": (368, 368),                          # 362x362 -> 368x368: the model can reduce dimensions properly (padding)
         "train_samples": 2500,
         "val_samples": 500
     },
 
     "acquisition": {
-        "tilt_bounds": (40, 60),                            # sample a max tilt between +/- 40 and 60
-        "projection_bounds": (8, 20),                       # sample between 8 and 20 total views
+        "tilt_bounds": (10, 50),                            # sample a max tilt between +/- 10 and 50
+        "projection_bounds": (4, 20),                       # sample between 4 and 20 total views
         "views_per_object": 5                               # the model is trained on each object 5 times per epoch (with different configurations)
     },
 
@@ -47,6 +48,10 @@ CONFIG = {
         "output_dir": "./cDDPM/checkpoints/",
         "log_dir": "./cDDPM/logs/",
         "resume_checkpoint": None
+    },
+
+    "inference" : {
+        "use_projector_guidance" : False
     }
 }
 
