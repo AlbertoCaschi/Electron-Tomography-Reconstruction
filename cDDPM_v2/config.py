@@ -2,7 +2,7 @@ import os
 
 CONFIG = {
     "data": {
-        "dataset_path": "./cDDPM/dataset/synthetic_raw/",
+        "dataset_path": "./cDDPM_v2/dataset/synthetic_raw/",
         "noise_threshold" : 0.3,
         "image_dims": (368, 368),                          # 362x362 -> 368x368: the model can reduce dimensions properly (padding)
         "train_samples": 2500,
@@ -41,17 +41,19 @@ CONFIG = {
         "gradient_accumulation_steps": 2,                   # effective batch size = batch_size * grad. accumulation steps
         "use_gradient_clipping" : True,                     # avoid exploding gradients
         "learning_rate": 1e-4,  
-        "warmup_epochs": 5, 
+        "warmup_epochs": 10, 
         "min_lr": 1e-6,                                     # minimum LR at the end of cosine decay
+        "cfg_prob": 0.12,
         "save_frequency": 1,
         "vis_frequency" : 1,
-        "output_dir": "./cDDPM/checkpoints/",
-        "log_dir": "./cDDPM/logs/",
+        "output_dir": "./cDDPM_v2/checkpoints/",
+        "log_dir": "./cDDPM_v2/logs/",
         "resume_checkpoint": None
     },
 
     "inference" : {
-        "use_projector_guidance" : False
+        "use_projector_guidance" : False,
+        "projector_guidance_lambda" : 0.05
     }
 }
 

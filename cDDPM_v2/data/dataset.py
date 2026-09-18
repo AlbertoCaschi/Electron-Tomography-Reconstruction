@@ -6,8 +6,8 @@ import torch
 from torch.utils.data import Dataset
 import mrcfile
 
-from cDDPM.physics.operators import TomographyOperator
-from cDDPM.config import CONFIG
+from cDDPM_v2.physics.operators import TomographyOperator
+from cDDPM_v2.config import CONFIG
 
 
 class TomographyDataset(Dataset):

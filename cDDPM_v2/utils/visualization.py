@@ -104,5 +104,5 @@ def save_reconstruction_progress(unet, diffusion, fixed_x_0, fixed_x_fbp, fixed_
 
 
 if __name__ == "__main__":
-    default_log_path = "./cDDPM/logs/training_log.csv"
+    default_log_path = "./cDDPM_v2/logs/training_log.csv"
     plot_training_curves(default_log_path)

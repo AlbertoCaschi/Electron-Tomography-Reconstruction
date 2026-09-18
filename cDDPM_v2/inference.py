@@ -5,10 +5,10 @@ import matplotlib.pyplot as plt
 import mrcfile
 from PIL import Image
 
-from cDDPM.config import CONFIG
-from cDDPM.physics.operators import TomographyOperator
-from cDDPM.models.unet import ConditionalUNet
-from cDDPM.models.diffusion import GaussianDiffusion
+from cDDPM_v2.config import CONFIG
+from cDDPM_v2.physics.operators import TomographyOperator
+from cDDPM_v2.models.unet import ConditionalUNet
+from cDDPM_v2.models.diffusion import GaussianDiffusion
 
 
 def normalize_to_ddpm_range(image):

@@ -12,7 +12,7 @@ checkpoint_data = {
             }
 '''
 
-checkpoint_path = "./cDDPM/checkpoints/unet_checkpoint_interrupted.pt"
+checkpoint_path = "./cDDPM_v2/checkpoints/unet_checkpoint_interrupted.pt"
 checkpoint = torch.load(checkpoint_path, map_location='cpu')
 
 # manually overwrite the checkpoint parameter that needs to be changed

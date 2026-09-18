@@ -7,10 +7,10 @@ from torch.optim.lr_scheduler import LinearLR, CosineAnnealingLR, SequentialLR
 import torch.optim as optim
 from tqdm import tqdm
 
-from cDDPM.data.dataset import TomographyDataset
-from cDDPM.models.unet import ConditionalUNet
-from cDDPM.models.diffusion import GaussianDiffusion
-from cDDPM.utils.visualization import plot_training_curves, save_reconstruction_progress
+from cDDPM_v2.data.dataset import TomographyDataset
+from cDDPM_v2.models.unet import ConditionalUNet
+from cDDPM_v2.models.diffusion import GaussianDiffusion
+from cDDPM_v2.utils.visualization import plot_training_curves, save_reconstruction_progress
 
 
 
@@ -140,8 +140,8 @@ def train_model(config):
                 noise = torch.randn_like(x_0)
                 x_t = diffusion.q_sample(x_0, t, noise=noise)
                 
-                # --- CFG: Randomly drop conditioning 15% of the time ---
-                drop_prob = 0.15
+                # --- CFG: Randomly drop conditioning 12% of the time ---
+                drop_prob = config["training"]["cfg_prob"]
                 if torch.rand(1).item() < drop_prob:
                     # Null condition (all zeros)
                     x_fbp_in = torch.zeros_like(x_fbp)

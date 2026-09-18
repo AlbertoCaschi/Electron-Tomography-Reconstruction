@@ -85,7 +85,7 @@ st.markdown("""
         pointer-events: none;
         z-index: -1;
         background-image: radial-gradient(ellipse 150% 150% at 100% 100%, 
-            rgba(48, 10, 10, 0.40) 0%,
+            rgba(252, 59, 45, 0.40) 0%,
             transparent 75%
         );
         transition: opacity 0.8s ease-in-out;
@@ -215,10 +215,10 @@ def load_private_model(model_type):
         if model_type == "VAE":
             url = "https://huggingface.co/albertocaschi/VAEResNet_Tomography/resolve/main/VAEResNet.pth"
             # Use os.path.join for cross-platform compatibility
-            local_path = os.path.join("models", "VAEResNet.pth")
+            local_path = os.path.join("trained_models", "VAEResNet.pth")
         elif model_type == "cDDPM":
             url = "https://huggingface.co/albertocaschi/cDDPM_Tomography/resolve/main/cDDPM.pt"
-            local_path = os.path.join("models", "cDDPM.pt")
+            local_path = os.path.join("trained_models", "cDDPM.pt")
         else:
             status.error(f"Unknown model type: {model_type}")
             return None
