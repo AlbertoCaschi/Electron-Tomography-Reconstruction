@@ -36,9 +36,9 @@ CONFIG = {
     },
 
     "training": {
-        "epochs": 30,
-        "batch_size": 4,
-        "gradient_accumulation_steps": 2,                   # effective batch size = batch_size * grad. accumulation steps
+        "epochs": 100,
+        "batch_size": 8,
+        "gradient_accumulation_steps": 4,                   # effective batch size = batch_size * grad. accumulation steps
         "use_gradient_clipping" : True,                     # avoid exploding gradients
         "learning_rate": 1e-4,  
         "warmup_epochs": 10, 

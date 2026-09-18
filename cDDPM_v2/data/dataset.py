@@ -71,6 +71,27 @@ class TomographyDataset(Dataset):
         angles_deg = np.linspace(-current_max_tilt, current_max_tilt, num_projections)
         return angles_deg
 
+    def _apply_spatial_augmentations(self, image):
+        """Randomly applies 2D flips and 90-degree rotations during training."""
+        if self.mode != "train":
+            return image
+            
+        # 50% chance for horizontal flip
+        if random.random() > 0.5:
+            image = np.fliplr(image)
+            
+        # 50% chance for vertical flip
+        if random.random() > 0.5:
+            image = np.flipud(image)
+            
+        # Random 90-degree rotation (0, 90, 180, or 270 degrees)
+        k = random.randint(0, 3)
+        if k > 0:
+            image = np.rot90(image, k)
+            
+        # Return a contiguous array copy
+        return np.ascontiguousarray(image)
+
     def __getitem__(self, idx):
         actual_file_idx = idx // self.views_per_object
         file_path = self.file_paths[actual_file_idx]
@@ -103,10 +124,13 @@ class TomographyDataset(Dataset):
             constant_values=0
         )
         
+        # apply spatial augmentations to the ground truth
+        x_0_padded = self._apply_spatial_augmentations(x_0_padded)
+        
         # select a randomized acquisition geometry for the missing wedge
         angles_deg = self._get_random_angles()
         
-        # simulate the configuration
+        # simulate the configuration based on the newly augmented image
         limited_sinogram = self.physics_operator.forward_project(x_0_padded, angles_deg)
         x_fbp_np = self.physics_operator.filtered_back_project(limited_sinogram, angles_deg)
         
