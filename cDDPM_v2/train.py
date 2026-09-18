@@ -33,11 +33,11 @@ def train_model(config):
     
     train_loader = DataLoader(
         train_dataset, batch_size=config["training"]["batch_size"], 
-        shuffle=True, num_workers=0, drop_last=True
+        shuffle=True, num_workers=config["training"]["num_workers"], drop_last=True
     )
     val_loader = DataLoader(
         val_dataset, batch_size=config["training"]["batch_size"], 
-        shuffle=False, num_workers=0, drop_last=False
+        shuffle=False, num_workers=config["training"]["num_workers"], drop_last=False
     )
     
     
@@ -144,7 +144,7 @@ def train_model(config):
                 drop_prob = config["training"]["cfg_prob"]
                 if torch.rand(1).item() < drop_prob:
                     # Null condition (all zeros)
-                    x_fbp_in = torch.zeros_like(x_fbp)
+                    x_fbp_in = torch.full_like(x_fbp, -1.0)
                     acq_config_in = torch.zeros_like(acq_config)
                 else:
                     # Actual condition

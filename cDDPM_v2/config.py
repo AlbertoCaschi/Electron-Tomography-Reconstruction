@@ -36,6 +36,7 @@ CONFIG = {
     },
 
     "training": {
+        "num_workers" : 1,
         "epochs": 100,
         "batch_size": 8,
         "gradient_accumulation_steps": 4,                   # effective batch size = batch_size * grad. accumulation steps
