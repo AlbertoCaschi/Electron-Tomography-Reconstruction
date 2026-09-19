@@ -113,8 +113,11 @@ def train_model(config):
     print("Press Ctrl+C at any time to safely save the model and stop.\n")
     
     current_epoch = start_epoch - 1
-    current_val_loss = float('inf') 
+    current_val_loss = float('inf')
 
+    # Initialize the AMP GradScaler before the loop
+    scaler = torch.amp.GradScaler('cuda')
+    
     try:
         # epoch Loop
         for epoch in range(start_epoch, epochs + 1):
@@ -143,7 +146,7 @@ def train_model(config):
                 # --- CFG: Randomly drop conditioning 12% of the time ---
                 drop_prob = config["training"]["cfg_prob"]
                 if torch.rand(1).item() < drop_prob:
-                    # Null condition (all zeros)
+                    # Null condition (all zeros/-1)
                     x_fbp_in = torch.full_like(x_fbp, -1.0)
                     acq_config_in = torch.zeros_like(acq_config)
                 else:
@@ -151,20 +154,22 @@ def train_model(config):
                     x_fbp_in = x_fbp
                     acq_config_in = acq_config
                 
-                noise_pred = unet(x_t, x_fbp_in, t, acq_config_in)
+                with torch.amp.autocast('cuda'):
+                    noise_pred = unet(x_t, x_fbp_in, t, acq_config_in)
+                    loss = criterion(noise_pred, noise)
+                    loss = loss / accum_steps
                 
-                loss = criterion(noise_pred, noise)
-                loss = loss / accum_steps
-                
-                loss.backward()
+                scaler.scale(loss).backward()
                 
                 # step optimizer when a complete batch is done (depending on accumulation steps)
                 if ((batch_idx + 1) % accum_steps == 0) or ((batch_idx + 1) == len(train_loader)):
 
                     if config["training"]["use_gradient_clipping"]:
+                        scaler.unscale_(optimizer)
                         torch.nn.utils.clip_grad_norm_(unet.parameters(), max_norm=1.0)
 
-                    optimizer.step()
+                    scaler.step(optimizer)
+                    scaler.update()
                     optimizer.zero_grad()
                 
                 train_loss += (loss.item() * accum_steps)
@@ -189,8 +194,11 @@ def train_model(config):
                     noise = torch.randn_like(x_0)
                     x_t = diffusion.q_sample(x_0, t, noise=noise)
                     
-                    noise_pred = unet(x_t, x_fbp, t, acq_config)
-                    loss = criterion(noise_pred, noise)
+                    # --- NEW: Validation Mixed Precision ---
+                    with torch.amp.autocast('cuda'):
+                        noise_pred = unet(x_t, x_fbp, t, acq_config)
+                        loss = criterion(noise_pred, noise)
+                        
                     val_loss += loss.item()
                     
             current_val_loss = val_loss / len(val_loader)
@@ -226,7 +234,6 @@ def train_model(config):
                     unet, diffusion, fixed_x_0, fixed_x_fbp, fixed_acq, 
                     epoch, log_dir, device
                 )
-
 
             current_lr = scheduler.get_last_lr()[0]
             print(f"--> Current Learning Rate: {current_lr:.6f}")

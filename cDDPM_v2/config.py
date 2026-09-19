@@ -5,14 +5,14 @@ CONFIG = {
         "dataset_path": "./cDDPM_v2/dataset/synthetic_raw/",
         "noise_threshold" : 0.3,
         "image_dims": (368, 368),                          # 362x362 -> 368x368: the model can reduce dimensions properly (padding)
-        "train_samples": 2500,
-        "val_samples": 500
+        "train_samples": 4000,
+        "val_samples": 1000
     },
 
     "acquisition": {
         "tilt_bounds": (10, 50),                            # sample a max tilt between +/- 10 and 50
         "projection_bounds": (4, 20),                       # sample between 4 and 20 total views
-        "views_per_object": 5                               # the model is trained on each object 5 times per epoch (with different configurations)
+        "views_per_object": 1                               # the model is trained on each object 2 times per epoch (with different configurations)
     },
 
     "physics": {
@@ -36,13 +36,13 @@ CONFIG = {
     },
 
     "training": {
-        "num_workers" : 1,
-        "epochs": 100,
+        "num_workers" : 4,
+        "epochs": 70,
         "batch_size": 8,
         "gradient_accumulation_steps": 4,                   # effective batch size = batch_size * grad. accumulation steps
         "use_gradient_clipping" : True,                     # avoid exploding gradients
         "learning_rate": 1e-4,  
-        "warmup_epochs": 10, 
+        "warmup_epochs": 7, 
         "min_lr": 1e-6,                                     # minimum LR at the end of cosine decay
         "cfg_prob": 0.12,
         "save_frequency": 1,
@@ -60,7 +60,7 @@ CONFIG = {
 
 if __name__ == "__main__":
 
-    from cDDPM.train import train_model
+    from cDDPM_v2.train import train_model
 
     print("Initializing 2D ET Diffusion Pipeline")
     print(f"Dataset Path: {CONFIG['data']['dataset_path']}")
