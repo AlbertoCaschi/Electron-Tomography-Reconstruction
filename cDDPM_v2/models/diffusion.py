@@ -149,7 +149,7 @@ class GaussianDiffusion(nn.Module):
         return x_t
 
     @torch.no_grad()
-    def p_sample(self, model, x_t, x_fbp, acq_config, t, t_index, uncertainty_map, true_sinogram=None, physics_op=None, angles=None, guidance_scale=2.0):
+    def p_sample(self, model, x_t, x_fbp, acq_config, t, t_index, true_sinogram=None, physics_op=None, angles=None, guidance_scale=2.0, uncertainty_map=None):
         """
         The Reverse Process (Single Step) using intermediate x_0 clipping.
         """
@@ -198,7 +198,7 @@ class GaussianDiffusion(nn.Module):
 
 
     @torch.no_grad()
-    def p_sample_loop(self, model, x_fbp, acq_config, uncertainty_map, true_sinogram=None, physics_op=None, angles=None, guidance_scale=2.0):
+    def p_sample_loop(self, model, x_fbp, acq_config, true_sinogram=None, physics_op=None, angles=None, uncertainty_map=None):
         """
         The Complete Reverse Process: Generates a sample from pure noise given x_fbp.
         (Primarily used for inference/validation).
@@ -219,6 +219,6 @@ class GaussianDiffusion(nn.Module):
         # Iterate backwards from T-1 down to 0
         for i in reversed(range(self.num_timesteps)):
             t = torch.full((b,), i, device=device, dtype=torch.long)
-            x_t = self.p_sample(model, x_t, x_fbp, acq_config, t, i, uncertainty_map, true_sinogram, physics_op, angles, guidance_scale)
+            x_t = self.p_sample(model, x_t, x_fbp, acq_config, t, i, true_sinogram, physics_op, angles, guidance_scale=1.0, uncertainty_map=uncertainty_map)
             
         return x_t

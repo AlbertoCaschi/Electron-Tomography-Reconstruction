@@ -45,15 +45,18 @@ class TomographyDataset(Dataset):
     def __len__(self):
         return len(self.file_paths) * self.views_per_object
 
-    def _normalize_and_threshold(self, image, threshold=0.0):
-        """Fixes the DDPM range bug by thresholding in [0, 1] space first."""
-        img_min = image.min()
-        img_max = image.max()
+    def _normalize_and_threshold(self, image, threshold=0.0, ref_min=None, ref_max=None):
+        """Scales an image using optional reference bounds to preserve physical contrast."""
+        img_min = ref_min if ref_min is not None else image.min()
+        img_max = ref_max if ref_max is not None else image.max()
         
         if img_max - img_min < 1e-6:
             return np.full_like(image, -1.0)
             
         img_normalized = (image - img_min) / (img_max - img_min)
+        
+        # Clip to [0, 1] in case the conditioning image exceeds the ground truth bounds
+        img_normalized = np.clip(img_normalized, 0.0, 1.0)
         
         if threshold > 0:
             img_normalized = np.where(img_normalized < threshold, 0.0, img_normalized)
@@ -130,14 +133,18 @@ class TomographyDataset(Dataset):
         # select a randomized acquisition geometry for the missing wedge
         angles_deg = self._get_random_angles()
         
-        # simulate the configuration based on the newly augmented image
+        # simulate the configuration
         limited_sinogram = self.physics_operator.forward_project(x_0_padded, angles_deg)
         x_fbp_np = self.physics_operator.filtered_back_project(limited_sinogram, angles_deg)
         
-        # Apply normalization and thresholding correctly
+        # Extract ground truth bounds to lock the scaling space
+        gt_min = x_0_padded.min()
+        gt_max = x_0_padded.max()
+        
+        # Apply normalization using shared bounds
         threshold = self.config["data"]["noise_threshold"]
-        x_0_processed = self._normalize_and_threshold(x_0_padded, threshold)
-        x_fbp_processed = self._normalize_and_threshold(x_fbp_np, threshold=0.0)
+        x_0_processed = self._normalize_and_threshold(x_0_padded, threshold, ref_min=gt_min, ref_max=gt_max)
+        x_fbp_processed = self._normalize_and_threshold(x_fbp_np, threshold=0.0, ref_min=gt_min, ref_max=gt_max)
         
         # tensor conversion [1, H, W]
         x_0_tensor = torch.from_numpy(x_0_processed).unsqueeze(0)
