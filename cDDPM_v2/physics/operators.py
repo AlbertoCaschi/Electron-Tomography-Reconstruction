@@ -74,6 +74,6 @@ class TomographyOperator:
         """
         # iradon requires the exact angles used during the forward projection.
         # We use a standard 'ramp' (Ram-Lak) filter which is standard for analytical FBP.
-        reconstruction = iradon(sinogram, theta=angles, circle=True, filter_name='ramp')
+        reconstruction = iradon(sinogram, theta=angles, circle=False, filter_name='ramp')
         
         return reconstruction

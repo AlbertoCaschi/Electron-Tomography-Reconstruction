@@ -15,7 +15,6 @@ def apply_projector_guidance(x_0_pred, true_sinogram, physics_op, angles, uncert
     device = x_0_pred.device
     
     # Prepare network prediction
-    x_0_np = torch.clamp(x_0_pred.squeeze(), -1.0, 1.0)
     x_0_np = ((x_0_np + 1.0) / 2.0).cpu().numpy()
     
     # Standard projector gradient step
@@ -155,23 +154,26 @@ class GaussianDiffusion(nn.Module):
         """
         # Conditional noise prediction (with x_fbp and acq_config)
         noise_cond = model(x_t, x_fbp, t, acq_config)
-        
-        # Unconditional noise prediction (null condition)
-        x_fbp_null = torch.zeros_like(x_fbp)
-        acq_config_null = torch.zeros_like(acq_config)
-        noise_uncond = model(x_t, x_fbp_null, t, acq_config_null)
-        
-        # Apply Classifier-Free Guidance extrapolation
-        # Matches the formula: (1-s)*uncond + s*cond
-        noise_pred = noise_uncond + guidance_scale * (noise_cond - noise_uncond)
+
+        if guidance_scale > 1.0:
+            # Unconditional noise prediction (null condition)
+            x_fbp_null = torch.full_like(x_fbp, -1.0) # FIXED: Use -1.0 instead of 0.0
+            acq_config_null = torch.zeros_like(acq_config)
+            noise_uncond = model(x_t, x_fbp_null, t, acq_config_null)
+            
+            # Apply Classifier-Free Guidance extrapolation
+            noise_pred = noise_uncond + guidance_scale * (noise_cond - noise_uncond)
+        else:
+            noise_pred = noise_cond
         
         # Predict the clean image (x_0) from x_t and the extrapolated noise
         sqrt_recip_alphas_cumprod_t = _extract(self.sqrt_recip_alphas_cumprod, t, x_t.shape)
         sqrt_recipm1_alphas_cumprod_t = _extract(self.sqrt_recipm1_alphas_cumprod, t, x_t.shape)
         
         x_0_pred = sqrt_recip_alphas_cumprod_t * x_t - sqrt_recipm1_alphas_cumprod_t * noise_pred
+        x_0_pred = torch.clamp(x_0_pred, min=-1.0, max=1.0)
 
-        # --- NEW: Data Consistency Projector ---
+        # Data Consistency Projector
         if true_sinogram is not None and physics_op is not None and angles is not None:
             x_0_pred = apply_projector_guidance(
                 x_0_pred, 
