@@ -225,6 +225,18 @@ class GaussianDiffusion(nn.Module):
         # Iterate backwards from T-1 down to 0
         for i in reversed(range(self.num_timesteps)):
             t = torch.full((b,), i, device=device, dtype=torch.long)
-            x_t = self.p_sample(model, x_t, x_fbp, acq_config, t, i, true_sinogram, physics_op, angles, guidance_scale=1.0, uncertainty_map=uncertainty_map)
+            x_t = self.p_sample(
+                model=model, 
+                x_t=x_t, 
+                x_fbp=x_fbp, 
+                acq_config=acq_config, 
+                t=t, 
+                t_index=i, 
+                uncertainty_map=uncertainty_map,
+                true_sinogram=true_sinogram, 
+                physics_op=physics_op, 
+                angles=angles, 
+                guidance_scale=1.0
+            )
             
         return x_t

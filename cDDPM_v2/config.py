@@ -54,7 +54,7 @@ CONFIG = {
 
     "inference" : {
         "use_projector_guidance" : False,
-        "projector_guidance_lambda" : 0.05
+        "projector_guidance_lambda" : 1
     }
 }
 

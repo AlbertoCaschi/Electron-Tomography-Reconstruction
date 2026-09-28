@@ -105,9 +105,16 @@ def process_and_reconstruct(unet, test_file, acquisition_config, device):
     x_fbp_np = physics_operator.filtered_back_project(sinogram_compute, acquisition_config)
     
     # normalize and convert to torch tensors
-    x_fbp_tensor = torch.from_numpy(normalize_to_ddpm_range(x_fbp_np)).unsqueeze(0).unsqueeze(0).to(device, dtype=torch.float32)
+    if g_max - g_min > 1e-6:
+        x_fbp_normalized = (x_fbp_np - g_min) / (g_max - g_min)
+    else:
+        x_fbp_normalized = np.zeros_like(x_fbp_np)
+        
+    x_fbp_normalized = np.clip(x_fbp_normalized, 0.0, 1.0)
+    x_fbp_scaled = (x_fbp_normalized * 2.0) - 1.0
+    x_fbp_tensor = torch.from_numpy(x_fbp_scaled).unsqueeze(0).unsqueeze(0).to(device, dtype=torch.float32)
     
-    # Create geometry configuration tensor for inference
+    # create geometry configuration tensor for inference
     current_max_tilt = np.abs(acquisition_config).max()
     num_projections = len(acquisition_config)
     acq_config_tensor = torch.tensor([current_max_tilt, num_projections], dtype=torch.float32).unsqueeze(0).to(device)
@@ -225,8 +232,8 @@ def run_streamlit_inference(model, test_file, output_image_path, output_fbp_path
 
 
 if __name__ == "__main__":
-    CHECKPOINT = os.path.join(CONFIG["training"]["output_dir"], "cDDPM.pt")
-    TEST_FILE = r".\assets\2_squares.mrc"
+    CHECKPOINT = os.path.join(CONFIG["training"]["output_dir"], "unet_checkpoint_best.pt")
+    TEST_FILE = r".\assets\oval1.mrc"
     ACQUISITION_CONFIG = np.arange(-50, 51, 5) # specific missing wedge and projection setup
     
     run_inference(CHECKPOINT, TEST_FILE, ACQUISITION_CONFIG)
