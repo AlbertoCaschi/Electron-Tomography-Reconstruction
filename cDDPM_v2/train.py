@@ -15,7 +15,8 @@ from cDDPM_v2.utils.visualization import plot_training_curves, save_reconstructi
 
 
 def train_model(config):
-    
+
+    # Device
     if torch.cuda.is_available():
         device = torch.device("cuda")
     elif torch.backends.mps.is_available():
@@ -26,7 +27,7 @@ def train_model(config):
 
     print(f"Using device: {device}")
     
-
+    # Datasets and dataloaders
     print("Loading datasets...")
     train_dataset = TomographyDataset(config, mode="train")
     val_dataset = TomographyDataset(config, mode="val")
@@ -42,13 +43,12 @@ def train_model(config):
     
     
     # the first element of the val set is used to visualize progress every epoch
-    print("Extracting fixed validation sample for progress tracking...")
     fixed_x_0, fixed_x_fbp, fixed_acq = val_dataset[0]
     fixed_x_0 = fixed_x_0.unsqueeze(0)
     fixed_x_fbp = fixed_x_fbp.unsqueeze(0)
     fixed_acq = fixed_acq.unsqueeze(0)
 
-    # model
+    # load models and training configurations
     unet = ConditionalUNet(config).to(device)
     diffusion = GaussianDiffusion(config).to(device)
     
@@ -64,9 +64,9 @@ def train_model(config):
     warmup_scheduler = LinearLR(optimizer, start_factor=0.1, total_iters=warmup_epochs)
     # cosine decay from base_lr down to min_lr over the remaining epochs
     cosine_scheduler = CosineAnnealingLR(optimizer, T_max=(epochs - warmup_epochs), eta_min=min_lr)
-    scheduler = SequentialLR(
+    scheduler = SequentialLR( # chain schedulers
         optimizer,
-        schedulers=[warmup_scheduler, cosine_scheduler], # chain schedulers
+        schedulers=[warmup_scheduler, cosine_scheduler],
         milestones=[warmup_epochs] # switch
         )
 
@@ -102,13 +102,18 @@ def train_model(config):
         print(f"Resuming at Epoch {start_epoch}. Current Best Val Loss: {best_val_loss:.6f}")
     
 
-    # CSV Setup
+    # Creating the CSV file (if training is started from the beginning)
     csv_log_path = os.path.join(log_dir, "training_log.csv")
     if start_epoch == 1 or not os.path.exists(csv_log_path):
         with open(csv_log_path, mode='w', newline='') as f:
             writer = csv.writer(f)
             writer.writerow(["Epoch", "Train Loss", "Val Loss"])
-            
+
+
+
+    ## TRAINING ##
+
+
     print("\n=== Starting Training ===")
     print("Press Ctrl+C at any time to safely save the model and stop.\n")
     
@@ -138,25 +143,31 @@ def train_model(config):
                 x_0 = x_0.to(device, dtype=torch.float32)
                 x_fbp = x_fbp.to(device, dtype=torch.float32)
                 acq_config = acq_config.to(device, dtype=torch.float32)
-                
+
+                # Sample a random timestep for each image in the batch (the model needs to learn
+                # how to remove the noise at any step t in the diffusion process)
                 t = torch.randint(0, num_timesteps, (x_0.shape[0],), device=device).long()
+                # Apply gaussian noise at timestep t to the ground truth image x_0
                 noise = torch.randn_like(x_0)
                 x_t = diffusion.q_sample(x_0, t, noise=noise)
+
                 
-                # --- CFG: Randomly drop conditioning 12% of the time ---
+                # CFG: Randomly drop conditioning 12% of the time
                 drop_prob = config["training"]["cfg_prob"]
                 if torch.rand(1).item() < drop_prob:
-                    # Null condition (all zeros/-1)
+                    # Null condition (all -1)
                     x_fbp_in = torch.full_like(x_fbp, -1.0)
                     acq_config_in = torch.zeros_like(acq_config)
                 else:
                     # Actual condition
                     x_fbp_in = x_fbp
                     acq_config_in = acq_config
-                
+
+                # Predictions are made efficiently by using half-precision on most
+                # operations (ex. convolutions). The gradients / loss still have FP32 precision.
                 with torch.amp.autocast('cuda'):
                     noise_pred = unet(x_t, x_fbp_in, t, acq_config_in)
-                    loss = criterion(noise_pred, noise)
+                    loss = criterion(noise_pred, noise) # MSE
                     loss = loss / accum_steps
                 
                 scaler.scale(loss).backward()
@@ -171,6 +182,24 @@ def train_model(config):
                     scaler.step(optimizer)
                     scaler.update()
                     optimizer.zero_grad()
+
+                '''
+                forward pass
+                    ↓
+                compute loss
+                    ↓
+                loss.backward()
+                    ↓
+                accumulate gradients
+                    ↓
+                    8x
+                    ↓
+                average gradients
+                    ↓
+                optimizer.step()
+                    ↓
+                update weights
+                '''
                 
                 train_loss += (loss.item() * accum_steps)
                 train_progress.set_postfix({"loss": f"{(loss.item() * accum_steps):.4f}"})
@@ -194,7 +223,6 @@ def train_model(config):
                     noise = torch.randn_like(x_0)
                     x_t = diffusion.q_sample(x_0, t, noise=noise)
                     
-                    # --- NEW: Validation Mixed Precision ---
                     with torch.amp.autocast('cuda'):
                         noise_pred = unet(x_t, x_fbp, t, acq_config)
                         loss = criterion(noise_pred, noise)

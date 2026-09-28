@@ -107,7 +107,7 @@ def process_and_reconstruct(unet, test_file, acquisition_config, device):
     # normalize and convert to torch tensors
     x_fbp_tensor = torch.from_numpy(normalize_to_ddpm_range(x_fbp_np)).unsqueeze(0).unsqueeze(0).to(device, dtype=torch.float32)
     
-    # New: Create geometry configuration tensor for inference
+    # Create geometry configuration tensor for inference
     current_max_tilt = np.abs(acquisition_config).max()
     num_projections = len(acquisition_config)
     acq_config_tensor = torch.tensor([current_max_tilt, num_projections], dtype=torch.float32).unsqueeze(0).to(device)
@@ -130,7 +130,7 @@ def process_and_reconstruct(unet, test_file, acquisition_config, device):
             true_sinogram=sinogram_compute if use_projector else None,
             physics_op=physics_operator if use_projector else None,
             angles=acquisition_config if use_projector else None,
-            uncertainty_map=uncertainty_tensor
+            uncertainty_map=uncertainty_tensor if use_projector else None
         )
         
     # normalize back to visualize
@@ -167,7 +167,7 @@ def plot_results(x_0_padded, sinogram, x_fbp_vis, x_recon_vis, max_angle, save_p
         plt.show()
     plt.close(fig)
 
-def run_inference(checkpoint_path, test_file, acquisition_config, noise_threshold=0.3):
+def run_inference(checkpoint_path, test_file, acquisition_config):
     device = get_device()
     print(f"Using device: {device}")
     
@@ -183,12 +183,12 @@ def run_inference(checkpoint_path, test_file, acquisition_config, noise_threshol
     print(f"Successfully loaded checkpoint from epoch {checkpoint.get('epoch', 'N/A')}.")
     
     x_0_padded, sinogram, x_fbp_vis, x_recon_vis = process_and_reconstruct(
-        unet, test_file, acquisition_config, device, noise_threshold
+        unet, test_file, acquisition_config, device
     )
 
     plot_results(x_0_padded, sinogram, x_fbp_vis, x_recon_vis, max(acquisition_config))
 
-def run_streamlit_inference(model, test_file, output_image_path, output_fbp_path, acquisition_config_dict, noise_threshold=0.3):
+def run_streamlit_inference(model, test_file, output_image_path, output_fbp_path, acquisition_config_dict):
     device = get_device()
     print(f"Using device: {device}")
     
@@ -204,7 +204,7 @@ def run_streamlit_inference(model, test_file, output_image_path, output_fbp_path
     )
     
     x_0_padded, sinogram, x_fbp_vis, x_recon_vis = process_and_reconstruct(
-        unet, test_file, acquisition_config, device, noise_threshold
+        unet, test_file, acquisition_config, device
     )
 
     # Save FBP file

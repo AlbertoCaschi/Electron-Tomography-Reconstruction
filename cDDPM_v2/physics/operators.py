@@ -36,8 +36,7 @@ class TomographyOperator:
 
     def apply_missing_wedge_mask(self, sinogram, angles, missing_wedge_range):
         """
-        Simulates a limited-angle scenario by deterministically masking out specific
-        angular ranges in the sinogram.
+        Sets to 0 all the pixels outside the data wedge in the sinogram.
         
         Args:
             sinogram (np.ndarray): The complete sinogram.

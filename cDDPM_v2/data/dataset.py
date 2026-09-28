@@ -16,8 +16,9 @@ class TomographyDataset(Dataset):
         self.mode = mode
         self.image_dims = config["data"]["image_dims"]
         self.acq_cfg = config["acquisition"]
-        self.views_per_object = self.acq_cfg.get("views_per_object", 10)
+        self.views_per_object = self.acq_cfg.get("views_per_object", 1)
         data_dir = config["data"]["dataset_path"]
+        # creates a sorted list with all the .mrc sinograms paths
         all_files = sorted(glob.glob(os.path.join(data_dir, "*.mrc")))
         
         if len(all_files) == 0:
@@ -43,6 +44,7 @@ class TomographyDataset(Dataset):
         self.full_angles = np.arange(raw_start, raw_end + raw_step, raw_step)
 
     def __len__(self):
+        # dataset length = n. objects * n. views
         return len(self.file_paths) * self.views_per_object
 
     def _normalize_and_threshold(self, image, threshold=0.0, ref_min=None, ref_max=None):
@@ -52,25 +54,32 @@ class TomographyDataset(Dataset):
         
         if img_max - img_min < 1e-6:
             return np.full_like(image, -1.0)
-            
+
+        # image is normalized
+        # image values now range from 0 to 1
         img_normalized = (image - img_min) / (img_max - img_min)
         
         # Clip to [0, 1] in case the conditioning image exceeds the ground truth bounds
         img_normalized = np.clip(img_normalized, 0.0, 1.0)
-        
+
+        # remove background noise
         if threshold > 0:
             img_normalized = np.where(img_normalized < threshold, 0.0, img_normalized)
-            
+
+        # image values range again from -1 to 1
         img_scaled = (img_normalized * 2.0) - 1.0
         return img_scaled
 
     def _get_random_angles(self):
+        # get a random data wedge angle
         min_tilt, max_tilt = self.acq_cfg["tilt_bounds"]
         current_max_tilt = random.uniform(min_tilt, max_tilt)
-        
+
+        # get a random number of projections
         min_proj, max_proj = self.acq_cfg["projection_bounds"]
         num_projections = random.randint(min_proj, max_proj)
-        
+
+        # generate the random configuration
         angles_deg = np.linspace(-current_max_tilt, current_max_tilt, num_projections)
         return angles_deg
 
@@ -92,7 +101,7 @@ class TomographyDataset(Dataset):
         if k > 0:
             image = np.rot90(image, k)
             
-        # Return a contiguous array copy
+        # Return a contiguous array copy (efficiency)
         return np.ascontiguousarray(image)
 
     def __getitem__(self, idx):
@@ -147,8 +156,8 @@ class TomographyDataset(Dataset):
         x_fbp_processed = self._normalize_and_threshold(x_fbp_np, threshold=0.0, ref_min=gt_min, ref_max=gt_max)
         
         # tensor conversion [1, H, W]
-        x_0_tensor = torch.from_numpy(x_0_processed).unsqueeze(0)
-        x_fbp_tensor = torch.from_numpy(x_fbp_processed).unsqueeze(0)
+        x_0_tensor = torch.from_numpy(x_0_processed).unsqueeze(0)       # Ground truth FBP
+        x_fbp_tensor = torch.from_numpy(x_fbp_processed).unsqueeze(0)   # Random config FBP
         
         # Extract geometry config
         current_max_tilt = np.abs(angles_deg).max()
