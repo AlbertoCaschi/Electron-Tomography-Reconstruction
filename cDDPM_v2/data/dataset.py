@@ -146,14 +146,10 @@ class TomographyDataset(Dataset):
         limited_sinogram = self.physics_operator.forward_project(x_0_padded, angles_deg)
         x_fbp_np = self.physics_operator.filtered_back_project(limited_sinogram, angles_deg)
         
-        # Extract ground truth bounds to lock the scaling space
-        gt_min = x_0_padded.min()
-        gt_max = x_0_padded.max()
-        
-        # Apply normalization using shared bounds
+        # GT gets thresholded, FBP preserves artifact gradients
         threshold = self.config["data"]["noise_threshold"]
-        x_0_processed = self._normalize_and_threshold(x_0_padded, threshold, ref_min=gt_min, ref_max=gt_max)
-        x_fbp_processed = self._normalize_and_threshold(x_fbp_np, threshold=0.0, ref_min=gt_min, ref_max=gt_max)
+        x_0_processed = self._normalize_and_threshold(x_0_padded, threshold)
+        x_fbp_processed = self._normalize_and_threshold(x_fbp_np, threshold=0.0) 
         
         # tensor conversion [1, H, W]
         x_0_tensor = torch.from_numpy(x_0_processed).unsqueeze(0)       # Ground truth FBP

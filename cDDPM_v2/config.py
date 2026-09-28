@@ -25,7 +25,7 @@ CONFIG = {
     "model": {          
         "in_channels": 2,                                   # 1 noisy latent (x_t) + 1 conditioning image (FBP)
         "out_channels": 1,                                  # model predicts the single-channel final image
-        "base_channels": 32,                                # feature map resolution
+        "base_channels": 64,                                # feature map resolution
         "channel_multipliers": (1, 2, 4, 8),                # multipliers for U-Net downsampling blocks
         "attention_resolutions": (16, 8),                   # spatial resolutions at which cross-attention is applied
     },
@@ -38,8 +38,8 @@ CONFIG = {
     "training": {
         "num_workers" : 4,
         "epochs": 70,
-        "batch_size": 8,
-        "gradient_accumulation_steps": 4,                   # effective batch size = batch_size * grad. accumulation steps
+        "batch_size": 2,
+        "gradient_accumulation_steps": 16,                   # effective batch size = batch_size * grad. accumulation steps
         "use_gradient_clipping" : True,                     # avoid exploding gradients
         "learning_rate": 1e-4,  
         "warmup_epochs": 7, 
