@@ -61,45 +61,62 @@ def unnormalize_from_ddpm_range(tensor):
     return (tensor + 1.0) / 2.0
 
 @torch.no_grad()
-def save_reconstruction_progress(unet, diffusion, fixed_x_0, fixed_x_fbp, fixed_acq, epoch, log_dir, device):
+def save_loss_plot(train_losses, log_dir, val_losses=None):
     """
-    Runs the reverse diffusion process on a fixed validation sample and saves the plot.
+    Save training/validation losses using:
+    1. Linear scale
+    2. Logarithmic scale
     """
-    unet.eval()
-
-    x_0 = fixed_x_0.to(device, dtype=torch.float32)
-    x_fbp = fixed_x_fbp.to(device, dtype=torch.float32)
-    acq_config = fixed_acq.to(device, dtype=torch.float32)
     
-    # Generation
-    x_recon = diffusion.p_sample_loop(unet, x_fbp, acq_config)
+    epochs = range(1, len(train_losses) + 1)
     
-    x_0_vis = unnormalize_from_ddpm_range(x_0).squeeze().cpu().numpy()
-    x_fbp_vis = unnormalize_from_ddpm_range(x_fbp).squeeze().cpu().numpy()
-    x_recon_vis = unnormalize_from_ddpm_range(x_recon).squeeze().cpu().numpy()
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
     
-    # Plot
-    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+    # -------------------------
+    # Linear scale plot
+    # -------------------------
+    axes[0].plot(epochs, train_losses,
+    label="Training Loss",
+    color="tab:blue",
+    linewidth=2)
     
-    axes[0].imshow(x_0_vis, cmap='gray')
-    axes[0].set_title("Ground Truth")
-    axes[0].axis('off')
+    if val_losses is not None:
+        axes[0].plot(epochs, val_losses,
+        label="Validation Loss",
+        color="tab:orange",
+        linewidth=2)
     
-    axes[1].imshow(x_fbp_vis, cmap='gray')
-    axes[1].set_title("Conditioning FBP (Artifacts)")
-    axes[1].axis('off')
+    axes[0].set_title("Loss (Linear Scale)")
+    axes[0].set_xlabel("Epoch")
+    axes[0].set_ylabel("Loss")
+    axes[0].grid(True, alpha=0.3)
+    axes[0].legend()
     
-    axes[2].imshow(x_recon_vis, cmap='gray')
-    axes[2].set_title(f"cDDPM Reconstruction (Epoch {epoch})")
-    axes[2].axis('off')
+    # -------------------------
+    # Log scale plot
+    # -------------------------
+    axes[1].plot(epochs, train_losses,
+    label="Training Loss",
+    color="tab:blue",
+    linewidth=2)
+    
+    if val_losses is not None:
+        axes[1].plot(epochs, val_losses,
+        label="Validation Loss",
+        color="tab:orange",
+        linewidth=2)
+    
+    axes[1].set_title("Loss (Log Scale)")
+    axes[1].set_xlabel("Epoch")
+    axes[1].set_ylabel("Loss")
+    axes[1].set_yscale('log')
+    axes[1].grid(True, which='both', alpha=0.3)
+    axes[1].legend()
     
     plt.tight_layout()
     
-    vis_dir = os.path.join(log_dir, "progress_images")
-    os.makedirs(vis_dir, exist_ok=True)
-    
-    save_path = os.path.join(vis_dir, f"recon_epoch_{epoch}.png")
-    plt.savefig(save_path, dpi=200)
+    save_path = os.path.join(log_dir, "loss_comparison.png")
+    plt.savefig(save_path, dpi=300, bbox_inches="tight")
     plt.close(fig)
 
 

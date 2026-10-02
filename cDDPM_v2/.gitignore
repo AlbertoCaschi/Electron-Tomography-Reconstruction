@@ -2,6 +2,8 @@
 checkpoints/
 dataset/reconstructions/
 dataset/synthetic_raw/
+dataset/SIRT_dataset/
+dataset/SIRT_configurations.csv
 logs/
 
 # --- Virtual environments ---

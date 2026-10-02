@@ -76,3 +76,21 @@ class TomographyOperator:
         reconstruction = iradon(sinogram, theta=angles, circle=False, filter_name='ramp')
         
         return reconstruction
+
+    def back_project(self, sinogram, angles): 
+        """
+        Computes the unfiltered inverse Radon transform (Back-Projection).
+        Useful for computing exact mathematical transposes (A^T) for gradient steps
+        and variance/uncertainty maps without noise amplification from the ramp filter.
+        
+        Args:
+            sinogram (np.ndarray): The sinogram.
+            angles (np.ndarray): 1D array of projection angles in degrees.
+            
+        Returns:
+            np.ndarray: The reconstructed 2D BP image without ramp filtering.
+        """
+        # filter_name=None removes the ramp filter, applying the exact mathematical transpose of the Radon operator.
+        reconstruction = iradon(sinogram, theta=angles, circle=False, filter_name=None)
+        
+        return reconstruction

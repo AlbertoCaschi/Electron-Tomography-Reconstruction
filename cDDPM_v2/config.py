@@ -5,27 +5,28 @@ CONFIG = {
         "dataset_path": "./cDDPM_v2/dataset/synthetic_raw/",
         "noise_threshold" : 0.3,
         "image_dims": (368, 368),                          # 362x362 -> 368x368: the model can reduce dimensions properly (padding)
-        "train_samples": 4000,
-        "val_samples": 1000
+        "train_samples": 2000,
+        "val_samples": 500
     },
 
     "acquisition": {
-        "tilt_bounds": (10, 50),                            # sample a max tilt between +/- 10 and 50
+        "tilt_bounds": (20, 50),                            # sample a max tilt between +/- 20 and 50
         "projection_bounds": (4, 20),                       # sample between 4 and 20 total views
-        "views_per_object": 1                               # the model is trained on each object 2 times per epoch (with different configurations)
+        "views_per_object": 5                               # the model is trained on each object 2 times per epoch (with different configurations)
     },
 
     "physics": {
         "detector_pixels": 362,                             # actual width of the spatial slice
         "geometry_type": "parallel",                        # standard 2D ET
         "backend": "skimage",           
-        "raw_angles" : (-90, 90, 1)                         # sinogram angles and step
+        "raw_angles" : (-90, 90, 1),                        # sinogram angles and step
+        "SIRT_iterations" : 15
     },          
 
     "model": {          
-        "in_channels": 2,                                   # 1 noisy latent (x_t) + 1 conditioning image (FBP)
+        "in_channels": 3,                                   # 1 noisy latent (x_t) + 1 conditioning image (FBP)
         "out_channels": 1,                                  # model predicts the single-channel final image
-        "base_channels": 64,                                # feature map resolution
+        "base_channels": 32,                                # feature map resolution
         "channel_multipliers": (1, 2, 4, 8),                # multipliers for U-Net downsampling blocks
         "attention_resolutions": (16, 8),                   # spatial resolutions at which cross-attention is applied
     },
@@ -41,9 +42,10 @@ CONFIG = {
         "batch_size": 2,
         "gradient_accumulation_steps": 16,                   # effective batch size = batch_size * grad. accumulation steps
         "use_gradient_clipping" : True,                     # avoid exploding gradients
-        "learning_rate": 1e-4,  
+        "lr_schedule" : "linear",
+        "learning_rate": 1e-5,  
         "warmup_epochs": 7, 
-        "min_lr": 1e-6,                                     # minimum LR at the end of cosine decay
+        "min_lr": 1e-6,                                     # minimum LR at the end of cosine decay (IF the scheduler is cosine)
         "cfg_prob": 0.12,
         "save_frequency": 1,
         "vis_frequency" : 1,

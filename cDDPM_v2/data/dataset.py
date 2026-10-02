@@ -1,5 +1,6 @@
 import os
 import glob
+import csv
 import random
 import numpy as np
 import torch
@@ -16,114 +17,108 @@ class TomographyDataset(Dataset):
         self.mode = mode
         self.image_dims = config["data"]["image_dims"]
         self.acq_cfg = config["acquisition"]
-        self.views_per_object = self.acq_cfg.get("views_per_object", 1)
+        self.views_per_object = self.acq_cfg.get("views_per_object", 5)
+        
+        # Directories
         data_dir = config["data"]["dataset_path"]
-        # creates a sorted list with all the .mrc sinograms paths
+        self.sirt_dir = config["data"].get("sirt_dataset_path", "./cDDPM_v2/dataset/SIRT_dataset")
+        csv_path = config["data"].get("csv_path", "./cDDPM_v2/dataset/sirt_configurations.csv")
+        
         all_files = sorted(glob.glob(os.path.join(data_dir, "*.mrc")))
         
         if len(all_files) == 0:
             raise FileNotFoundError(f"No .mrc files found in {data_dir}. Please check your path.")
             
-        # train/validation split
-        train_samples = config["data"].get("train_samples", 2500)
+        # Load configurations from CSV
+        all_configs = []
+        with open(csv_path, mode='r') as f:
+            reader = csv.reader(f)
+            next(reader)  # Skip header
+            for row in reader:
+                all_configs.append(row[1:]) # Store the 5 config strings
+                
+        if len(all_files) != len(all_configs):
+            raise ValueError("Mismatch between number of raw MRC files and CSV configuration rows.")
+            
+        # Train/validation split
+        train_samples = config["data"].get("train_samples", 2000)
         
         if self.mode == "train":
             self.file_paths = all_files[:train_samples]
+            self.configs = all_configs[:train_samples]
         elif self.mode == "val":
             self.file_paths = all_files[train_samples:]
+            self.configs = all_configs[train_samples:]
         else:
             self.file_paths = all_files
+            self.configs = all_configs
             
         if len(self.file_paths) == 0:
             raise ValueError(f"No files available for mode '{self.mode}'. Check your dataset folder and split counts.")
-            
 
         self.physics_operator = TomographyOperator(config["physics"])
-        
         raw_start, raw_end, raw_step = config["physics"]["raw_angles"]
         self.full_angles = np.arange(raw_start, raw_end + raw_step, raw_step)
 
     def __len__(self):
-        # dataset length = n. objects * n. views
         return len(self.file_paths) * self.views_per_object
 
     def _normalize_and_threshold(self, image, threshold=0.0, ref_min=None, ref_max=None):
-        """Scales an image using optional reference bounds to preserve physical contrast."""
         img_min = ref_min if ref_min is not None else image.min()
         img_max = ref_max if ref_max is not None else image.max()
         
         if img_max - img_min < 1e-6:
             return np.full_like(image, -1.0)
 
-        # image is normalized
-        # image values now range from 0 to 1
         img_normalized = (image - img_min) / (img_max - img_min)
-        
-        # Clip to [0, 1] in case the conditioning image exceeds the ground truth bounds
         img_normalized = np.clip(img_normalized, 0.0, 1.0)
 
-        # remove background noise
         if threshold > 0:
             img_normalized = np.where(img_normalized < threshold, 0.0, img_normalized)
 
-        # image values range again from -1 to 1
         img_scaled = (img_normalized * 2.0) - 1.0
         return img_scaled
 
-    def _get_random_angles(self):
-        # get a random data wedge angle
-        min_tilt, max_tilt = self.acq_cfg["tilt_bounds"]
-        current_max_tilt = random.uniform(min_tilt, max_tilt)
-
-        # get a random number of projections
-        min_proj, max_proj = self.acq_cfg["projection_bounds"]
-        num_projections = random.randint(min_proj, max_proj)
-
-        # generate the random configuration
-        angles_deg = np.linspace(-current_max_tilt, current_max_tilt, num_projections)
-        return angles_deg
-
-    def _apply_spatial_augmentations(self, image):
-        """Randomly applies 2D flips and 90-degree rotations during training."""
+    def _apply_spatial_augmentations(self, img_gt, img_cond, img_unc):
+        """Applies IDENTICAL 2D flips and 90-degree rotations to GT, Conditioning, and Uncertainty images."""
         if self.mode != "train":
-            return image
+            return img_gt, img_cond, img_unc
             
-        # 50% chance for horizontal flip
         if random.random() > 0.5:
-            image = np.fliplr(image)
+            img_gt = np.fliplr(img_gt)
+            img_cond = np.fliplr(img_cond)
+            img_unc = np.fliplr(img_unc)
             
-        # 50% chance for vertical flip
         if random.random() > 0.5:
-            image = np.flipud(image)
+            img_gt = np.flipud(img_gt)
+            img_cond = np.flipud(img_cond)
+            img_unc = np.flipud(img_unc)
             
-        # Random 90-degree rotation (0, 90, 180, or 270 degrees)
         k = random.randint(0, 3)
         if k > 0:
-            image = np.rot90(image, k)
+            img_gt = np.rot90(img_gt, k)
+            img_cond = np.rot90(img_cond, k)
+            img_unc = np.rot90(img_unc, k)
             
-        # Return a contiguous array copy (efficiency)
-        return np.ascontiguousarray(image)
+        return np.ascontiguousarray(img_gt), np.ascontiguousarray(img_cond), np.ascontiguousarray(img_unc)
 
     def __getitem__(self, idx):
         actual_file_idx = idx // self.views_per_object
-        file_path = self.file_paths[actual_file_idx]
+        view_idx = idx % self.views_per_object
         
-        # load sinogram
+        # 1. Load raw sinogram to compute pristine Ground Truth
+        file_path = self.file_paths[actual_file_idx]
         with mrcfile.open(file_path, permissive=True) as mrc:
             raw_sinogram = np.squeeze(mrc.data).astype(np.float32).copy()
             
-        # check correct shape (362, 181)
         if raw_sinogram.shape[0] == len(self.full_angles):
             raw_sinogram = raw_sinogram.T
             
-        # complete sinogram -> full FBP
         x_0_np = self.physics_operator.filtered_back_project(raw_sinogram, self.full_angles)
             
-        # padding to match the target U-Net dimensions (368x368)
         target_h, target_w = self.image_dims
         pad_h = max(0, target_h - x_0_np.shape[0])
         pad_w = max(0, target_w - x_0_np.shape[1])
-        
         pad_top = pad_h // 2
         pad_bottom = pad_h - pad_top
         pad_left = pad_w // 2
@@ -136,28 +131,39 @@ class TomographyDataset(Dataset):
             constant_values=0
         )
         
-        # apply spatial augmentations to the ground truth
-        x_0_padded = self._apply_spatial_augmentations(x_0_padded)
+        # 2. Load the corresponding precomputed SIRT image and Uncertainty map
+        base_name = os.path.basename(file_path).replace('.mrc', '')
+        sirt_filename = f"{base_name}_cfg_{view_idx}.mrc"
+        unc_filename = f"{base_name}_cfg_{view_idx}_unc.mrc"
         
-        # select a randomized acquisition geometry for the missing wedge
-        angles_deg = self._get_random_angles()
+        sirt_path = os.path.join(self.sirt_dir, sirt_filename)
+        unc_path = os.path.join(self.sirt_dir, unc_filename)
         
-        # simulate the configuration
-        limited_sinogram = self.physics_operator.forward_project(x_0_padded, angles_deg)
-        x_fbp_np = self.physics_operator.filtered_back_project(limited_sinogram, angles_deg)
+        with mrcfile.open(sirt_path, permissive=True) as mrc:
+            x_sirt_np = np.squeeze(mrc.data).astype(np.float32).copy()
+            
+        with mrcfile.open(unc_path, permissive=True) as mrc:
+            x_unc_np = np.squeeze(mrc.data).astype(np.float32).copy()
+            
+        # 3. Apply matched spatial augmentations
+        x_0_padded, x_sirt_np, x_unc_np = self._apply_spatial_augmentations(x_0_padded, x_sirt_np, x_unc_np)
         
-        # GT gets thresholded, FBP preserves artifact gradients
+        # 4. Normalize and threshold
         threshold = self.config["data"]["noise_threshold"]
         x_0_processed = self._normalize_and_threshold(x_0_padded, threshold)
-        x_fbp_processed = self._normalize_and_threshold(x_fbp_np, threshold=0.0) 
+        x_sirt_processed = self._normalize_and_threshold(x_sirt_np, threshold=0.0) 
         
-        # tensor conversion [1, H, W]
-        x_0_tensor = torch.from_numpy(x_0_processed).unsqueeze(0)       # Ground truth FBP
-        x_fbp_tensor = torch.from_numpy(x_fbp_processed).unsqueeze(0)   # Random config FBP
+        # Map the [0, 1] uncertainty map to [-1, 1] for U-Net consistency
+        x_unc_processed = (np.clip(x_unc_np, 0.0, 1.0) * 2.0) - 1.0
         
-        # Extract geometry config
-        current_max_tilt = np.abs(angles_deg).max()
-        num_projections = len(angles_deg)
+        x_0_tensor = torch.from_numpy(x_0_processed).unsqueeze(0)       
+        x_sirt_tensor = torch.from_numpy(x_sirt_processed).unsqueeze(0) 
+        x_unc_tensor = torch.from_numpy(x_unc_processed).unsqueeze(0)
+        
+        # 5. Extract geometry configuration from CSV
+        cfg_str = self.configs[actual_file_idx][view_idx]
+        current_max_tilt, num_projections = map(float, cfg_str.split('_'))
+        
         acq_config = torch.tensor([current_max_tilt, num_projections], dtype=torch.float32)
         
-        return x_0_tensor, x_fbp_tensor, acq_config
+        return x_0_tensor, x_sirt_tensor, x_unc_tensor, acq_config

@@ -13,7 +13,6 @@ from cDDPM_v2.models.diffusion import GaussianDiffusion
 from cDDPM_v2.utils.visualization import plot_training_curves, save_reconstruction_progress
 
 
-
 def train_model(config):
 
     # Device
@@ -43,9 +42,10 @@ def train_model(config):
     
     
     # the first element of the val set is used to visualize progress every epoch
-    fixed_x_0, fixed_x_fbp, fixed_acq = val_dataset[0]
+    fixed_x_0, fixed_x_sirt, fixed_x_unc, fixed_acq = val_dataset[0]
     fixed_x_0 = fixed_x_0.unsqueeze(0)
-    fixed_x_fbp = fixed_x_fbp.unsqueeze(0)
+    fixed_x_sirt = fixed_x_sirt.unsqueeze(0)
+    fixed_x_unc = fixed_x_unc.unsqueeze(0)
     fixed_acq = fixed_acq.unsqueeze(0)
 
     # load models and training configurations
@@ -53,23 +53,41 @@ def train_model(config):
     diffusion = GaussianDiffusion(config).to(device)
     
     optimizer = optim.AdamW(unet.parameters(), lr=config["training"]["learning_rate"], weight_decay=1e-4)
-    criterion = nn.MSELoss()
+    criterion = nn.L1Loss() # Swapped to L1 Loss
 
     epochs = config["training"]["epochs"]
     warmup_epochs = config["training"].get("warmup_epochs", 5)
+    base_lr = config["training"]["learning_rate"]
     min_lr = config["training"].get("min_lr", 1e-6)
+    schedule_type = config["training"].get("lr_schedule", "cosine")
     
-    # LR scheduler
-    # from 10% of base_lr to 100% of base_lr over the warmup epochs
+    # Warmup phase: linearly increase from 10% of base_lr to 100% of base_lr
     warmup_scheduler = LinearLR(optimizer, start_factor=0.1, total_iters=warmup_epochs)
-    # cosine decay from base_lr down to min_lr over the remaining epochs
-    cosine_scheduler = CosineAnnealingLR(optimizer, T_max=(epochs - warmup_epochs), eta_min=min_lr)
-    scheduler = SequentialLR( # chain schedulers
-        optimizer,
-        schedulers=[warmup_scheduler, cosine_scheduler],
-        milestones=[warmup_epochs] # switch
+    
+    # Main decay phase: based on config selection
+    if schedule_type == "cosine":
+        main_scheduler = CosineAnnealingLR(
+            optimizer, 
+            T_max=(epochs - warmup_epochs), 
+            eta_min=min_lr
         )
+    elif schedule_type == "linear":
+        end_factor = min_lr / base_lr if base_lr > 0 else 0.0
+        main_scheduler = LinearLR(
+            optimizer, 
+            start_factor=1.0, 
+            end_factor=end_factor, 
+            total_iters=(epochs - warmup_epochs)
+        )
+    else:
+        raise ValueError(f"Unsupported lr_schedule: {schedule_type}. Choose 'cosine' or 'linear'.")
 
+    # Chain schedulers
+    scheduler = SequentialLR(
+        optimizer,
+        schedulers=[warmup_scheduler, main_scheduler],
+        milestones=[warmup_epochs]
+    )
 
     save_freq = config["training"]["save_frequency"]
     vis_freq = config["training"].get("vis_frequency", 1)
@@ -110,9 +128,7 @@ def train_model(config):
             writer.writerow(["Epoch", "Train Loss", "Val Loss"])
 
 
-
     ## TRAINING ##
-
 
     print("\n=== Starting Training ===")
     print("Press Ctrl+C at any time to safely save the model and stop.\n")
@@ -131,7 +147,6 @@ def train_model(config):
             accum_steps = config["training"].get("gradient_accumulation_steps", 1)
             
             ## TRAIN ##
-
             unet.train()
             train_loss = 0.0
             
@@ -139,40 +154,39 @@ def train_model(config):
             
             optimizer.zero_grad()
             
-            for batch_idx, (x_0, x_fbp, acq_config) in train_progress:
+            for batch_idx, (x_0, x_sirt, x_unc, acq_config) in train_progress:
                 x_0 = x_0.to(device, dtype=torch.float32)
-                x_fbp = x_fbp.to(device, dtype=torch.float32)
+                x_sirt = x_sirt.to(device, dtype=torch.float32)
+                x_unc = x_unc.to(device, dtype=torch.float32)
                 acq_config = acq_config.to(device, dtype=torch.float32)
 
-                # Sample a random timestep for each image in the batch (the model needs to learn
-                # how to remove the noise at any step t in the diffusion process)
+                # Sample a random timestep for each image in the batch
                 t = torch.randint(0, num_timesteps, (x_0.shape[0],), device=device).long()
                 # Apply gaussian noise at timestep t to the ground truth image x_0
                 noise = torch.randn_like(x_0)
                 x_t = diffusion.q_sample(x_0, t, noise=noise)
-
                 
                 # CFG: Randomly drop conditioning 12% of the time
                 drop_prob = config["training"]["cfg_prob"]
                 if torch.rand(1).item() < drop_prob:
-                    # Null condition (all -1)
-                    x_fbp_in = torch.full_like(x_fbp, -1.0)
+                    # Null condition (all -1.0)
+                    x_sirt_in = torch.full_like(x_sirt, -1.0)
+                    x_unc_in = torch.full_like(x_unc, -1.0)
                     acq_config_in = torch.zeros_like(acq_config)
                 else:
                     # Actual condition
-                    x_fbp_in = x_fbp
+                    x_sirt_in = x_sirt
+                    x_unc_in = x_unc
                     acq_config_in = acq_config
 
-                # Predictions are made efficiently by using half-precision on most
-                # operations (ex. convolutions). The gradients / loss still have FP32 precision.
                 with torch.amp.autocast('cuda'):
-                    noise_pred = unet(x_t, x_fbp_in, t, acq_config_in)
-                    loss = criterion(noise_pred, noise) # MSE
+                    noise_pred = unet(x_t, x_sirt_in, x_unc_in, t, acq_config_in)
+                    loss = criterion(noise_pred, noise)
                     loss = loss / accum_steps
                 
                 scaler.scale(loss).backward()
                 
-                # step optimizer when a complete batch is done (depending on accumulation steps)
+                # step optimizer when a complete batch is done
                 if ((batch_idx + 1) % accum_steps == 0) or ((batch_idx + 1) == len(train_loader)):
 
                     if config["training"]["use_gradient_clipping"]:
@@ -182,24 +196,6 @@ def train_model(config):
                     scaler.step(optimizer)
                     scaler.update()
                     optimizer.zero_grad()
-
-                '''
-                forward pass
-                    ↓
-                compute loss
-                    ↓
-                loss.backward()
-                    ↓
-                accumulate gradients
-                    ↓
-                    8x
-                    ↓
-                average gradients
-                    ↓
-                optimizer.step()
-                    ↓
-                update weights
-                '''
                 
                 train_loss += (loss.item() * accum_steps)
                 train_progress.set_postfix({"loss": f"{(loss.item() * accum_steps):.4f}"})
@@ -208,15 +204,15 @@ def train_model(config):
             
 
             ## VALIDATION ##
-
             unet.eval()
             val_loss = 0.0
             val_progress = tqdm(val_loader, desc=f"Epoch {epoch}/{epochs} [Val]", leave=False)
             
             with torch.no_grad():
-                for x_0, x_fbp, acq_config in val_progress:
+                for x_0, x_sirt, x_unc, acq_config in val_progress:
                     x_0 = x_0.to(device, dtype=torch.float32)
-                    x_fbp = x_fbp.to(device, dtype=torch.float32)
+                    x_sirt = x_sirt.to(device, dtype=torch.float32)
+                    x_unc = x_unc.to(device, dtype=torch.float32)
                     acq_config = acq_config.to(device, dtype=torch.float32)
                     
                     t = torch.randint(0, num_timesteps, (x_0.shape[0],), device=device).long()
@@ -224,7 +220,7 @@ def train_model(config):
                     x_t = diffusion.q_sample(x_0, t, noise=noise)
                     
                     with torch.amp.autocast('cuda'):
-                        noise_pred = unet(x_t, x_fbp, t, acq_config)
+                        noise_pred = unet(x_t, x_sirt, x_unc, t, acq_config)
                         loss = criterion(noise_pred, noise)
                         
                     val_loss += loss.item()
@@ -259,7 +255,7 @@ def train_model(config):
             # generate visualization
             if epoch % vis_freq == 0 or epoch == epochs:
                 save_reconstruction_progress(
-                    unet, diffusion, fixed_x_0, fixed_x_fbp, fixed_acq, 
+                    unet, diffusion, fixed_x_0, fixed_x_sirt, fixed_x_unc, fixed_acq, 
                     epoch, log_dir, device
                 )
 
