@@ -58,6 +58,7 @@ def compute_uncertainty_map(true_sinogram, physics_op, angles, target_shape):
         
         # Use unfiltered back-projection for accurate variance
         b_i = physics_op.back_project(sino_slice, angle)
+        b_i = b_i / num_tilts
         b_i = center_crop(b_i, target_h, target_w)
         b_maps.append(b_i)
         
@@ -69,6 +70,7 @@ def compute_uncertainty_map(true_sinogram, physics_op, angles, target_shape):
     # Normalize by the theoretical maximum variance for T samples
     var_max = (num_tilts + 1) / (4 * num_tilts)
     u_map = np.clip(variance_map / var_max, 0.0, 1.0)
+    u_map = (u_map * 2.0) - 1.0
     
     return torch.from_numpy(u_map).float()
 
@@ -151,7 +153,7 @@ def process_and_reconstruct(unet, test_file, acquisition_config, device):
             true_sinogram=sinogram_compute if use_projector else None,
             physics_op=physics_operator if use_projector else None,
             angles=acquisition_config if use_projector else None,
-            uncertainty_map=uncertainty_tensor if use_projector else None
+            uncertainty_map=uncertainty_tensor
         )
         
     # normalize back to visualize

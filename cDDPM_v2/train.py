@@ -137,7 +137,7 @@ def train_model(config):
     current_val_loss = float('inf')
 
     # Initialize the AMP GradScaler before the loop
-    scaler = torch.amp.GradScaler('cuda')
+    scaler = torch.amp.GradScaler(device.type)
     
     try:
         # epoch Loop
@@ -179,7 +179,7 @@ def train_model(config):
                     x_unc_in = x_unc
                     acq_config_in = acq_config
 
-                with torch.amp.autocast('cuda'):
+                with torch.amp.autocast(device.type):
                     noise_pred = unet(x_t, x_sirt_in, x_unc_in, t, acq_config_in)
                     loss = criterion(noise_pred, noise)
                     loss = loss / accum_steps
@@ -219,7 +219,7 @@ def train_model(config):
                     noise = torch.randn_like(x_0)
                     x_t = diffusion.q_sample(x_0, t, noise=noise)
                     
-                    with torch.amp.autocast('cuda'):
+                    with torch.amp.autocast(device.type):
                         noise_pred = unet(x_t, x_sirt, x_unc, t, acq_config)
                         loss = criterion(noise_pred, noise)
                         
@@ -273,6 +273,7 @@ def train_model(config):
             'epoch': completed_epoch,
             'model_state_dict': unet.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
+            'scheduler_state_dict': scheduler.state_dict(),
             'val_loss': current_val_loss,
             'best_val_loss': best_val_loss
         }, interrupted_path)

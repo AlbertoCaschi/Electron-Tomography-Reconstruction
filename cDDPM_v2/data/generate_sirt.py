@@ -87,6 +87,7 @@ def generate_limited_sirt_dataset(
                 sino_slice = limited_sinogram[:, i:i+1]
                 # Unfiltered back-projection for exact variance
                 b_i = iradon(sino_slice, theta=angle, circle=False, filter_name=None)
+                b_i = b_i / num_proj
                 b_maps.append(b_i)
                 
             b_maps = np.stack(b_maps, axis=0)

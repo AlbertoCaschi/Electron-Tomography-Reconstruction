@@ -94,12 +94,6 @@ class TomographyDataset(Dataset):
             img_cond = np.flipud(img_cond)
             img_unc = np.flipud(img_unc)
             
-        k = random.randint(0, 3)
-        if k > 0:
-            img_gt = np.rot90(img_gt, k)
-            img_cond = np.rot90(img_cond, k)
-            img_unc = np.rot90(img_unc, k)
-            
         return np.ascontiguousarray(img_gt), np.ascontiguousarray(img_cond), np.ascontiguousarray(img_unc)
 
     def __getitem__(self, idx):
@@ -130,6 +124,12 @@ class TomographyDataset(Dataset):
             mode='constant', 
             constant_values=0
         )
+
+        H, W = x_0_padded.shape
+        if H > target_h or W > target_w:
+            start_y = (H - target_h) // 2
+            start_x = (W - target_w) // 2
+            x_0_padded = x_0_padded[start_y:start_y+target_h, start_x:start_x+target_w]
         
         # 2. Load the corresponding precomputed SIRT image and Uncertainty map
         base_name = os.path.basename(file_path).replace('.mrc', '')
@@ -147,11 +147,18 @@ class TomographyDataset(Dataset):
             
         # 3. Apply matched spatial augmentations
         x_0_padded, x_sirt_np, x_unc_np = self._apply_spatial_augmentations(x_0_padded, x_sirt_np, x_unc_np)
+
+        sirt_min = x_sirt_np.min()
+        sirt_max = x_sirt_np.max()
         
         # 4. Normalize and threshold
         threshold = self.config["data"]["noise_threshold"]
-        x_0_processed = self._normalize_and_threshold(x_0_padded, threshold)
-        x_sirt_processed = self._normalize_and_threshold(x_sirt_np, threshold=0.0) 
+        x_sirt_processed = self._normalize_and_threshold(
+            x_sirt_np, threshold=0.0, ref_min=sirt_min, ref_max=sirt_max
+        ) 
+        x_0_processed = self._normalize_and_threshold(
+            x_0_padded, threshold=threshold, ref_min=sirt_min, ref_max=sirt_max
+        )
         
         # Map the [0, 1] uncertainty map to [-1, 1] for U-Net consistency
         x_unc_processed = (np.clip(x_unc_np, 0.0, 1.0) * 2.0) - 1.0

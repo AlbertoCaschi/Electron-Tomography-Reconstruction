@@ -22,7 +22,19 @@ def apply_projector_guidance(x_0_pred, true_sinogram, physics_op, angles, uncert
     
     # Standard projector gradient step
     sim_sinogram = physics_op.forward_project(x_0_np, angles)
-    error_sinogram = true_sinogram - sim_sinogram
+
+    # Both the sim_sinogram and true_sinogram need to have values in the same range
+    true_min, true_max = true_sinogram.min(), true_sinogram.max()
+    sim_min, sim_max = sim_sinogram.min(), sim_sinogram.max()
+    
+    if (true_max - true_min) > 1e-6:
+        true_sinogram_norm = (true_sinogram - true_min) / (true_max - true_min)
+        true_sinogram_scaled = true_sinogram_norm * (sim_max - sim_min) + sim_min
+    else:
+        true_sinogram_scaled = true_sinogram
+
+    # Error calculation
+    error_sinogram = true_sinogram_scaled - sim_sinogram
     
     # Use unfiltered back-projection to represent the exact mathematical transpose (A^T)
     error_img_padded = physics_op.back_project(error_sinogram, angles)
@@ -149,14 +161,16 @@ class GaussianDiffusion(nn.Module):
         The Reverse Process (Single Step) using intermediate x_0 clipping.
         """
         # Conditional noise prediction (with x_sirt and acq_config)
-        noise_cond = model(x_t, x_sirt, t, acq_config)
+        noise_cond = model(x_t, x_sirt, uncertainty_map, t, acq_config)
 
         if guidance_scale > 1.0:
             # Unconditional noise prediction (null condition)
             x_sirt_null = torch.full_like(x_sirt, -1.0)
             acq_config_null = torch.zeros_like(acq_config)
-            noise_uncond = model(x_t, x_sirt_null, t, acq_config_null)
-            
+            x_unc_null = torch.full_like(uncertainty_map, -1.0)
+
+            noise_uncond = model(x_t, x_sirt_null, x_unc_null, t, acq_config_null)
+
             # Apply Classifier-Free Guidance extrapolation
             noise_pred = noise_uncond + guidance_scale * (noise_cond - noise_uncond)
         else:
@@ -195,7 +209,7 @@ class GaussianDiffusion(nn.Module):
 
 
     @torch.no_grad()
-    def p_sample_loop(self, model, x_sirt, acq_config, uncertainty_map=None, true_sinogram=None, physics_op=None, angles=None, guidance_scale=2.0):
+    def p_sample_loop(self, model, x_sirt, acq_config, uncertainty_map=None, true_sinogram=None, physics_op=None, angles=None, guidance_scale=1.0):
         """
         The Complete Reverse Process: Generates a sample from pure noise given x_sirt.
         """
@@ -219,7 +233,7 @@ class GaussianDiffusion(nn.Module):
                 true_sinogram=true_sinogram, 
                 physics_op=physics_op, 
                 angles=angles, 
-                guidance_scale=1.0
+                guidance_scale=guidance_scale
             )
 
         return x_t
