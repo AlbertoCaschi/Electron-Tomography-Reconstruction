@@ -136,8 +136,9 @@ def train_model(config):
     current_epoch = start_epoch - 1
     current_val_loss = float('inf')
 
-    # Initialize the AMP GradScaler before the loop
-    scaler = torch.amp.GradScaler(device.type)
+    # GradScaler initialization
+    is_cuda = device.type == 'cuda'
+    scaler = torch.amp.GradScaler('cuda', enabled=is_cuda)
     
     try:
         # epoch Loop

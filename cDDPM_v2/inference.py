@@ -139,10 +139,10 @@ def process_and_reconstruct(unet, test_file, acquisition_config, device):
     use_projector = CONFIG["inference"]["use_projector_guidance"]
     uncertainty_tensor = None
 
-    if use_projector:
-        u_map = compute_uncertainty_map(sinogram_compute, physics_operator, acquisition_config, (target_h, target_w))
-        # Match the U-Net tensor dimensions [1, 1, H, W]
-        uncertainty_tensor = u_map.unsqueeze(0).unsqueeze(0).to(device)
+    
+    u_map = compute_uncertainty_map(sinogram_compute, physics_operator, acquisition_config, (target_h, target_w))
+    # Match the U-Net tensor dimensions [1, 1, H, W]
+    uncertainty_tensor = u_map.unsqueeze(0).unsqueeze(0).to(device)
 
     print("Starting diffusion generation (may take a minute)...")
     with torch.no_grad():
@@ -232,13 +232,13 @@ def run_streamlit_inference(model, test_file, output_image_path, output_sirt_pat
 
     # Save SIRT file
     os.makedirs(os.path.dirname(output_sirt_path), exist_ok=True)
-    recon_8bit = x_recon_vis - np.min(x_recon_vis)
-    if np.max(recon_8bit) > 0:
-        recon_8bit = (recon_8bit / np.max(recon_8bit) * 255).astype(np.uint8)
+    sirt_8bit = x_sirt_vis - np.min(x_sirt_vis)
+    if np.max(sirt_8bit) > 0:
+        sirt_8bit = (sirt_8bit / np.max(sirt_8bit) * 255).astype(np.uint8)
     else:
-        recon_8bit = recon_8bit.astype(np.uint8)
-    
-    Image.fromarray(recon_8bit).save(output_sirt_path)
+        sirt_8bit = sirt_8bit.astype(np.uint8)
+
+    Image.fromarray(sirt_8bit).save(output_sirt_path)
 
     # Save plot
     plot_results(

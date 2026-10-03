@@ -30,7 +30,7 @@ class TomographyOperator:
         """
         # skimage radon treats the center of the image as the origin of rotation.
         # circle=False ensures the entire image is projected, not just the inscribed circle.
-        sinogram = radon(image, theta=angles, circle=False)
+        sinogram = radon(image, theta=angles, circle=True)
         
         return sinogram
 
@@ -73,7 +73,7 @@ class TomographyOperator:
         """
         # iradon requires the exact angles used during the forward projection.
         # We use a standard 'ramp' (Ram-Lak) filter which is standard for analytical FBP.
-        reconstruction = iradon(sinogram, theta=angles, circle=False, filter_name='ramp')
+        reconstruction = iradon(sinogram, theta=angles, circle=True, filter_name='ramp')
         
         return reconstruction
 
@@ -91,6 +91,6 @@ class TomographyOperator:
             np.ndarray: The reconstructed 2D BP image without ramp filtering.
         """
         # filter_name=None removes the ramp filter, applying the exact mathematical transpose of the Radon operator.
-        reconstruction = iradon(sinogram, theta=angles, circle=False, filter_name=None)
+        reconstruction = iradon(sinogram, theta=angles, circle=True, filter_name=None)
         
         return reconstruction

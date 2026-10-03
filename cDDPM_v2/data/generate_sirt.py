@@ -52,7 +52,7 @@ def generate_limited_sirt_dataset(
             raw_angles = np.linspace(raw_start, raw_end, num_angles)
             
         # Ground Truth padding
-        x_0_np = iradon(raw_sinogram, theta=raw_angles, circle=False, filter_name='ramp')
+        x_0_np = iradon(raw_sinogram, theta=raw_angles, circle=True, filter_name='ramp')
         
         pad_h = max(0, target_h - x_0_np.shape[0])
         pad_w = max(0, target_w - x_0_np.shape[1])
@@ -73,7 +73,7 @@ def generate_limited_sirt_dataset(
             angles_deg = np.linspace(-max_tilt, max_tilt, num_proj)
             
             # Forward project from the padded GT to get the limited sinogram (pads to ~521)
-            limited_sinogram = radon(x_0_padded, theta=angles_deg, circle=False)
+            limited_sinogram = radon(x_0_padded, theta=angles_deg, circle=True)
             
             # --- A. SIRT (SART) Reconstruction ---
             reconstruction = None
@@ -86,7 +86,7 @@ def generate_limited_sirt_dataset(
                 angle = np.array([angles_deg[i]])
                 sino_slice = limited_sinogram[:, i:i+1]
                 # Unfiltered back-projection for exact variance
-                b_i = iradon(sino_slice, theta=angle, circle=False, filter_name=None)
+                b_i = iradon(sino_slice, theta=angle, circle=True, filter_name=None)
                 b_i = b_i / num_proj
                 b_maps.append(b_i)
                 

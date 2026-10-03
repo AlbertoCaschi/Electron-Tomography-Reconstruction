@@ -55,11 +55,14 @@ def apply_projector_guidance(x_0_pred, true_sinogram, physics_op, angles, uncert
     # Convert back to tensors in [0, 1] range to apply the blend
     x_0_pred_tensor = torch.from_numpy(x_0_np).unsqueeze(0).unsqueeze(0).to(device)
     x_0_projected_tensor = torch.from_numpy(x_0_projected_np).unsqueeze(0).unsqueeze(0).to(device)
+
+    # Convert the uncertainty map from [-1, 1] back to a [0, 1] mask for alpha blending
+    u_map_blend = (uncertainty_map + 1.0) / 2.0
     
     # Apply Uncertainty Weighting
     # High uncertainty (u -> 1) heavily weights the network prior (x_0_pred)
     # Low uncertainty (u -> 0) heavily weights the data consistency (x_0_projected)
-    x_blended = (uncertainty_map * x_0_pred_tensor) + ((1.0 - uncertainty_map) * x_0_projected_tensor)
+    x_blended = (u_map_blend * x_0_pred_tensor) + ((1.0 - u_map_blend) * x_0_projected_tensor)
     
     # Shift back to DDPM [-1, 1] scale
     x_0_updated_tensor = (x_blended * 2.0) - 1.0
@@ -156,7 +159,7 @@ class GaussianDiffusion(nn.Module):
         return x_t
 
     @torch.no_grad()
-    def p_sample(self, model, x_t, x_sirt, acq_config, t, t_index, uncertainty_map=None, true_sinogram=None, physics_op=None, angles=None, guidance_scale=2.0):
+    def p_sample(self, model, x_t, x_sirt, acq_config, t, t_index, uncertainty_map, true_sinogram=None, physics_op=None, angles=None, guidance_scale=2.0):
         """
         The Reverse Process (Single Step) using intermediate x_0 clipping.
         """
@@ -209,7 +212,7 @@ class GaussianDiffusion(nn.Module):
 
 
     @torch.no_grad()
-    def p_sample_loop(self, model, x_sirt, acq_config, uncertainty_map=None, true_sinogram=None, physics_op=None, angles=None, guidance_scale=1.0):
+    def p_sample_loop(self, model, x_sirt, acq_config, uncertainty_map, true_sinogram=None, physics_op=None, angles=None, guidance_scale=1.0):
         """
         The Complete Reverse Process: Generates a sample from pure noise given x_sirt.
         """
