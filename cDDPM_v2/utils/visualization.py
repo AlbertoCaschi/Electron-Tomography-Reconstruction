@@ -89,7 +89,7 @@ def save_reconstruction_progress(unet, diffusion, x_0, x_sirt, x_unc, acq_config
         x_sirt_dev, 
         acq_config_dev, 
         uncertainty_map=x_unc_dev,
-        guidance_scale=2.0
+        guidance_scale=1.0
     )
     
     # Unnormalize back to [0, 1] and convert to numpy

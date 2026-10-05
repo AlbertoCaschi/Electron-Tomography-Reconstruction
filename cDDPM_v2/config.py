@@ -3,7 +3,7 @@ import os
 CONFIG = {
     "data": {
         "dataset_path": "./cDDPM_v2/dataset/synthetic_raw/",
-        "noise_threshold" : 0.3,
+        "noise_threshold" : 0.2,
         "image_dims": (368, 368),                          # 362x362 -> 368x368: the model can reduce dimensions properly (padding)
         "train_samples": 2000,
         "val_samples": 500
@@ -26,7 +26,7 @@ CONFIG = {
     "model": {          
         "in_channels": 3,                                   # 1 noisy latent (x_t) + 1 conditioning image (FBP)
         "out_channels": 1,                                  # model predicts the single-channel final image
-        "base_channels": 32,                                # feature map resolution
+        "base_channels": 64,                                # feature map resolution
         "channel_multipliers": (1, 2, 4, 8),                # multipliers for U-Net downsampling blocks
         "attention_resolutions": (16, 8),                   # spatial resolutions at which cross-attention is applied
     },
@@ -39,11 +39,11 @@ CONFIG = {
     "training": {
         "num_workers" : 4,
         "epochs": 70,
-        "batch_size": 2,
-        "gradient_accumulation_steps": 16,                   # effective batch size = batch_size * grad. accumulation steps
+        "batch_size": 1,
+        "gradient_accumulation_steps": 32,                   # effective batch size = batch_size * grad. accumulation steps
         "use_gradient_clipping" : True,                     # avoid exploding gradients
         "lr_schedule" : "linear",
-        "learning_rate": 1e-5,  
+        "learning_rate": 1e-4,  
         "warmup_epochs": 7, 
         "min_lr": 1e-6,                                     # minimum LR at the end of cosine decay (IF the scheduler is cosine)
         "cfg_prob": 0.12,

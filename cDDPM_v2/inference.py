@@ -58,7 +58,6 @@ def compute_uncertainty_map(true_sinogram, physics_op, angles, target_shape):
         
         # Use unfiltered back-projection for accurate variance
         b_i = physics_op.back_project(sino_slice, angle)
-        b_i = b_i / num_tilts
         b_i = center_crop(b_i, target_h, target_w)
         b_maps.append(b_i)
         

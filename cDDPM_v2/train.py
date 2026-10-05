@@ -13,6 +13,16 @@ from cDDPM_v2.models.diffusion import GaussianDiffusion
 from cDDPM_v2.utils.visualization import plot_training_curves, save_reconstruction_progress
 
 
+def total_variation_loss(img):
+    """
+    Computes the anisotropic Total Variation (TV) loss for a batch of images.
+    Takes the mean across spatial and channel dimensions to prevent scale explosion.
+    """
+    tv_h = torch.abs(img[:, :, 1:, :] - img[:, :, :-1, :]).mean(dim=[1, 2, 3])
+    tv_w = torch.abs(img[:, :, :, 1:] - img[:, :, :, :-1]).mean(dim=[1, 2, 3])
+    return tv_h + tv_w
+
+
 def train_model(config):
 
     # Device
@@ -53,7 +63,7 @@ def train_model(config):
     diffusion = GaussianDiffusion(config).to(device)
     
     optimizer = optim.AdamW(unet.parameters(), lr=config["training"]["learning_rate"], weight_decay=1e-4)
-    criterion = nn.L1Loss() # Swapped to L1 Loss
+    criterion = nn.L1Loss() 
 
     epochs = config["training"]["epochs"]
     warmup_epochs = config["training"].get("warmup_epochs", 5)
@@ -129,7 +139,6 @@ def train_model(config):
 
 
     ## TRAINING ##
-
     print("\n=== Starting Training ===")
     print("Press Ctrl+C at any time to safely save the model and stop.\n")
     
@@ -140,6 +149,9 @@ def train_model(config):
     is_cuda = device.type == 'cuda'
     scaler = torch.amp.GradScaler('cuda', enabled=is_cuda)
     
+    # TV Loss Base Weight
+    lambda_tv_base = 0.2
+
     try:
         # epoch Loop
         for epoch in range(start_epoch, epochs + 1):
@@ -161,35 +173,39 @@ def train_model(config):
                 x_unc = x_unc.to(device, dtype=torch.float32)
                 acq_config = acq_config.to(device, dtype=torch.float32)
 
-                # Sample a random timestep for each image in the batch
                 t = torch.randint(0, num_timesteps, (x_0.shape[0],), device=device).long()
-                # Apply gaussian noise at timestep t to the ground truth image x_0
                 noise = torch.randn_like(x_0)
                 x_t = diffusion.q_sample(x_0, t, noise=noise)
                 
-                # CFG: Randomly drop conditioning 12% of the time
                 drop_prob = config["training"]["cfg_prob"]
                 if torch.rand(1).item() < drop_prob:
-                    # Null condition (all -1.0)
                     x_sirt_in = torch.full_like(x_sirt, -1.0)
                     x_unc_in = torch.full_like(x_unc, -1.0)
                     acq_config_in = torch.zeros_like(acq_config)
                 else:
-                    # Actual condition
                     x_sirt_in = x_sirt
                     x_unc_in = x_unc
                     acq_config_in = acq_config
 
                 with torch.amp.autocast(device.type):
-                    noise_pred = unet(x_t, x_sirt_in, x_unc_in, t, acq_config_in)
-                    loss = criterion(noise_pred, noise)
-                    loss = loss / accum_steps
+                    # Network now outputs the estimated clean image (x_0) directly
+                    x_0_pred = unet(x_t, x_sirt_in, x_unc_in, t, acq_config_in)
+                    
+                    # Base L1 Fidelity Loss
+                    loss_l1 = criterion(x_0_pred, x_0)
+                    
+                    # Dynamic Total Variation Loss
+                    tv_per_sample = total_variation_loss(x_0_pred)
+                    alpha_bar_t = diffusion.alphas_cumprod[t]
+                    
+                    # Weight scales from ~0.0 at t=1000 to lambda_tv_base at t=0
+                    loss_tv = (lambda_tv_base * alpha_bar_t * tv_per_sample).mean()
+                    
+                    loss = (loss_l1 + loss_tv) / accum_steps
                 
                 scaler.scale(loss).backward()
                 
-                # step optimizer when a complete batch is done
                 if ((batch_idx + 1) % accum_steps == 0) or ((batch_idx + 1) == len(train_loader)):
-
                     if config["training"]["use_gradient_clipping"]:
                         scaler.unscale_(optimizer)
                         torch.nn.utils.clip_grad_norm_(unet.parameters(), max_norm=1.0)
@@ -221,8 +237,14 @@ def train_model(config):
                     x_t = diffusion.q_sample(x_0, t, noise=noise)
                     
                     with torch.amp.autocast(device.type):
-                        noise_pred = unet(x_t, x_sirt, x_unc, t, acq_config)
-                        loss = criterion(noise_pred, noise)
+                        x_0_pred = unet(x_t, x_sirt, x_unc, t, acq_config)
+                        
+                        loss_l1 = criterion(x_0_pred, x_0)
+                        tv_per_sample = total_variation_loss(x_0_pred)
+                        alpha_bar_t = diffusion.alphas_cumprod[t]
+                        loss_tv = (lambda_tv_base * alpha_bar_t * tv_per_sample).mean()
+                        
+                        loss = loss_l1 + loss_tv
                         
                     val_loss += loss.item()
                     

@@ -9,10 +9,10 @@ from tqdm import tqdm
 from cDDPM_v2.config import CONFIG
 
 def generate_limited_sirt_dataset(
-    input_dir="./cDDPM_v2/dataset/synthetic_raw", 
+    input_dir=CONFIG["data"]["dataset_path"], 
     sirt_output_dir="./cDDPM_v2/dataset/SIRT_dataset",
     csv_path="./cDDPM_v2/dataset/sirt_configurations.csv",
-    iterations=15
+    iterations=CONFIG["physics"]["SIRT_iterations"]
 ):
     os.makedirs(sirt_output_dir, exist_ok=True)
     
@@ -87,7 +87,6 @@ def generate_limited_sirt_dataset(
                 sino_slice = limited_sinogram[:, i:i+1]
                 # Unfiltered back-projection for exact variance
                 b_i = iradon(sino_slice, theta=angle, circle=True, filter_name=None)
-                b_i = b_i / num_proj
                 b_maps.append(b_i)
                 
             b_maps = np.stack(b_maps, axis=0)

@@ -157,7 +157,7 @@ class TomographyDataset(Dataset):
             x_sirt_np, threshold=0.0, ref_min=sirt_min, ref_max=sirt_max
         ) 
         x_0_processed = self._normalize_and_threshold(
-            x_0_padded, threshold=threshold, ref_min=sirt_min, ref_max=sirt_max
+            x_0_padded, threshold=threshold
         )
         
         # Map the [0, 1] uncertainty map to [-1, 1] for U-Net consistency
