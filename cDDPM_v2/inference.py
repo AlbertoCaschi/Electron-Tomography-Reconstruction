@@ -16,7 +16,7 @@ def normalize_to_ddpm_range(image):
     """Min-max scales an image to [-1, 1]."""
     img_min, img_max = image.min(), image.max()
     if img_max - img_min < 1e-6:
-        return np.zeros_like(image)
+        return np.full_like(image, -1.0)
     img_normalized = (image - img_min) / (img_max - img_min)
     return (img_normalized * 2.0) - 1.0
 
@@ -53,25 +53,28 @@ def compute_uncertainty_map(true_sinogram, physics_op, angles, target_shape):
     # Back-project each tilt individually
     for i in range(num_tilts):
         angle = np.array([angles[i]])
-        # Extract the specific column for this angle
         sino_slice = true_sinogram[:, i:i+1]
         
-        # Use unfiltered back-projection for accurate variance
+        # Raw unfiltered back-projection
         b_i = physics_op.back_project(sino_slice, angle)
         b_i = center_crop(b_i, target_h, target_w)
         b_maps.append(b_i)
         
     b_maps = np.stack(b_maps, axis=0) # Shape: [T, H, W]
-    
-    # Compute the variance across the tilts
     variance_map = np.var(b_maps, axis=0)
     
-    # Normalize by the theoretical maximum variance for T samples
-    var_max = (num_tilts + 1) / (4 * num_tilts)
-    u_map = np.clip(variance_map / var_max, 0.0, 1.0)
+    # Dynamically min-max normalize the variance to [0, 1]
+    var_min, var_max = variance_map.min(), variance_map.max()
+    if var_max - var_min > 1e-8:
+        u_map = (variance_map - var_min) / (var_max - var_min)
+    else:
+        u_map = np.zeros_like(variance_map)
+        
+    # Shift to DDPM scale [-1, 1]
     u_map = (u_map * 2.0) - 1.0
     
     return torch.from_numpy(u_map).float()
+
 
 def process_and_reconstruct(unet, test_file, acquisition_config, device):
     """Handles the core data pipeline, physics operations, and model sampling."""
@@ -90,17 +93,18 @@ def process_and_reconstruct(unet, test_file, acquisition_config, device):
         raw_sinogram = raw_sinogram.T
 
     x_0_np = physics_operator.filtered_back_project(raw_sinogram, full_angles)
+    x_0_np = np.clip(x_0_np, a_min=0.0, a_max=None)
     
     target_h, target_w = CONFIG["data"]["image_dims"]
     
     pad_h, pad_w = max(0, target_h - x_0_np.shape[0]), max(0, target_w - x_0_np.shape[1])
     pad_top, pad_left = pad_h // 2, pad_w // 2
-    
+
     x_0_padded = np.pad(
         x_0_np, 
         ((pad_top, pad_h - pad_top), (pad_left, pad_w - pad_left)), 
         mode='constant',
-        constant_values=0
+        constant_values=0.0
     )
 
     # normalization

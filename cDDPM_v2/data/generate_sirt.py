@@ -16,12 +16,10 @@ def generate_limited_sirt_dataset(
 ):
     os.makedirs(sirt_output_dir, exist_ok=True)
     
-    # 1. Dynamically load the exact angles from config.py
     raw_start, raw_end, raw_step = CONFIG["physics"]["raw_angles"]
     raw_angles = np.arange(raw_start, raw_end + raw_step, raw_step)
     target_h, target_w = CONFIG["data"]["image_dims"]
     
-    # 2. Read the configurations from the CSV
     configs = []
     with open(csv_path, mode='r') as f:
         reader = csv.reader(f)
@@ -34,8 +32,7 @@ def generate_limited_sirt_dataset(
     if len(mrc_files) != len(configs):
         print(f"Warning: Found {len(mrc_files)} MRC files but {len(configs)} CSV rows.")
     
-    # 3. Process each object and its 5 configurations
-    for idx, file_path in tqdm(enumerate(mrc_files), total=len(mrc_files), desc="Generating 2500x5 SIRT & Uncertainty files"):
+    for idx, file_path in tqdm(enumerate(mrc_files), total=len(mrc_files), desc=f"Generating SIRT & Uncertainty map files"):
         filename = os.path.basename(file_path)
         base_name = filename.replace('.mrc', '')
         cfgs = configs[idx]
@@ -44,36 +41,42 @@ def generate_limited_sirt_dataset(
         with mrcfile.open(file_path, permissive=True) as mrc:
             raw_sinogram = np.squeeze(mrc.data).astype(np.float32).copy()
             
-        if raw_sinogram.shape[0] < raw_sinogram.shape[1]:
+        if raw_sinogram.shape[0] == len(raw_angles):
             raw_sinogram = raw_sinogram.T
             
         num_angles = raw_sinogram.shape[1]
         if len(raw_angles) != num_angles:
             raw_angles = np.linspace(raw_start, raw_end, num_angles)
             
-        # Ground Truth padding
         x_0_np = iradon(raw_sinogram, theta=raw_angles, circle=True, filter_name='ramp')
+        
+        x_0_np = np.clip(x_0_np, a_min=0.0, a_max=None)
         
         pad_h = max(0, target_h - x_0_np.shape[0])
         pad_w = max(0, target_w - x_0_np.shape[1])
         pad_top, pad_left = pad_h // 2, pad_w // 2
         
+        # Padded border now perfectly matches the clamped background
         x_0_padded = np.pad(
             x_0_np, 
             ((pad_top, pad_h - pad_top), (pad_left, pad_w - pad_left)), 
             mode='constant', 
-            constant_values=0
+            constant_values=0.0
         )
         
-        # Generate the 5 limited-angle SIRT reconstructions and Uncertainty Maps
+        threshold = CONFIG["data"]["noise_threshold"]
+        x_0_normalized = (x_0_padded - x_0_padded.min()) / (x_0_padded.max() - x_0_padded.min() + 1e-8)
+        x_0_standardized = np.where(x_0_normalized < threshold, 0.0, x_0_normalized)
+        
+        # Generate the limited-angle SIRT reconstructions and Uncertainty Maps
         for cfg_idx, cfg_str in enumerate(cfgs):
             max_tilt, num_proj = map(float, cfg_str.split('_'))
             num_proj = int(num_proj)
             
             angles_deg = np.linspace(-max_tilt, max_tilt, num_proj)
             
-            # Forward project from the padded GT to get the limited sinogram (pads to ~521)
-            limited_sinogram = radon(x_0_padded, theta=angles_deg, circle=True)
+            # Forward project from the standardized [0, 1] GT to get the limited sinogram
+            limited_sinogram = radon(x_0_standardized, theta=angles_deg, circle=True)
             
             # --- A. SIRT (SART) Reconstruction ---
             reconstruction = None
@@ -85,14 +88,19 @@ def generate_limited_sirt_dataset(
             for i in range(num_proj):
                 angle = np.array([angles_deg[i]])
                 sino_slice = limited_sinogram[:, i:i+1]
-                # Unfiltered back-projection for exact variance
+                # Raw unfiltered back-projection
                 b_i = iradon(sino_slice, theta=angle, circle=True, filter_name=None)
                 b_maps.append(b_i)
                 
             b_maps = np.stack(b_maps, axis=0)
             variance_map = np.var(b_maps, axis=0)
-            var_max = (num_proj + 1) / (4 * num_proj)
-            u_map = np.clip(variance_map / var_max, 0.0, 1.0)
+            
+            # Dynamically min-max normalize the variance to [0, 1]
+            var_min, var_max = variance_map.min(), variance_map.max()
+            if var_max - var_min > 1e-8:
+                u_map = (variance_map - var_min) / (var_max - var_min)
+            else:
+                u_map = np.zeros_like(variance_map)
                 
             # --- C. Crop both back to target dimensions ---
             H, W = reconstruction.shape

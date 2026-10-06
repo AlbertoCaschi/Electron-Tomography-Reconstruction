@@ -18,8 +18,11 @@ def total_variation_loss(img):
     Computes the anisotropic Total Variation (TV) loss for a batch of images.
     Takes the mean across spatial and channel dimensions to prevent scale explosion.
     """
+    # img_shape = [B, C, H, W]
     tv_h = torch.abs(img[:, :, 1:, :] - img[:, :, :-1, :]).mean(dim=[1, 2, 3])
+    # we compare neighboring pixels along rows and compute the mean of their difference
     tv_w = torch.abs(img[:, :, :, 1:] - img[:, :, :, :-1]).mean(dim=[1, 2, 3])
+    # we compare neighboring pixels along columns and compute the mean of their difference
     return tv_h + tv_w
 
 
@@ -150,7 +153,7 @@ def train_model(config):
     scaler = torch.amp.GradScaler('cuda', enabled=is_cuda)
     
     # TV Loss Base Weight
-    lambda_tv_base = 0.2
+    lambda_tv_base = 0.15
 
     try:
         # epoch Loop
@@ -209,6 +212,7 @@ def train_model(config):
                     if config["training"]["use_gradient_clipping"]:
                         scaler.unscale_(optimizer)
                         torch.nn.utils.clip_grad_norm_(unet.parameters(), max_norm=1.0)
+                        # computes the norm of the gradients and proportionally scales them down if grad_norm > max_norm
 
                     scaler.step(optimizer)
                     scaler.update()

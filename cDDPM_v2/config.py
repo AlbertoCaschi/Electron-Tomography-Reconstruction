@@ -11,7 +11,7 @@ CONFIG = {
 
     "acquisition": {
         "tilt_bounds": (20, 50),                            # sample a max tilt between +/- 20 and 50
-        "projection_bounds": (8, 20),                       # sample between 4 and 20 total views
+        "projection_bounds": (8, 20),                       # sample between 8 and 20 total views
         "views_per_object": 7                               # the model is trained on each object 2 times per epoch (with different configurations)
     },
 
@@ -40,12 +40,12 @@ CONFIG = {
         "num_workers" : 4,
         "epochs": 70,
         "batch_size": 1,
-        "gradient_accumulation_steps": 32,                   # effective batch size = batch_size * grad. accumulation steps
+        "gradient_accumulation_steps": 32,                  # effective batch size = batch_size * grad. accumulation steps
         "use_gradient_clipping" : True,                     # avoid exploding gradients
         "lr_schedule" : "linear",
         "learning_rate": 1e-4,  
         "warmup_epochs": 7, 
-        "min_lr": 1e-6,                                     # minimum LR at the end of cosine decay (IF the scheduler is cosine)
+        "min_lr": 1e-6,                                     # minimum LR at the end of decay
         "cfg_prob": 0.12,
         "save_frequency": 1,
         "vis_frequency" : 1,

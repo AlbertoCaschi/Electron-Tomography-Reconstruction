@@ -17,7 +17,7 @@ class TomographyDataset(Dataset):
         self.mode = mode
         self.image_dims = config["data"]["image_dims"]
         self.acq_cfg = config["acquisition"]
-        self.views_per_object = self.acq_cfg.get("views_per_object", 5)
+        self.views_per_object = self.acq_cfg.get("views_per_object", 7)
         
         # Directories
         data_dir = config["data"]["dataset_path"]
@@ -64,6 +64,9 @@ class TomographyDataset(Dataset):
         return len(self.file_paths) * self.views_per_object
 
     def _normalize_and_threshold(self, image, threshold=0.0, ref_min=None, ref_max=None):
+        # apply normalization on some specific references or using min, max of the
+        # image as reference
+        # applies treshold
         img_min = ref_min if ref_min is not None else image.min()
         img_max = ref_max if ref_max is not None else image.max()
         
@@ -77,6 +80,7 @@ class TomographyDataset(Dataset):
             img_normalized = np.where(img_normalized < threshold, 0.0, img_normalized)
 
         img_scaled = (img_normalized * 2.0) - 1.0
+        # returns the image in the [-1,1] range
         return img_scaled
 
     def _apply_spatial_augmentations(self, img_gt, img_cond, img_unc):
@@ -100,15 +104,24 @@ class TomographyDataset(Dataset):
         actual_file_idx = idx // self.views_per_object
         view_idx = idx % self.views_per_object
         
-        # 1. Load raw sinogram to compute pristine Ground Truth
+        # Load raw sinogram to compute pristine Ground Truth
         file_path = self.file_paths[actual_file_idx]
         with mrcfile.open(file_path, permissive=True) as mrc:
             raw_sinogram = np.squeeze(mrc.data).astype(np.float32).copy()
             
         if raw_sinogram.shape[0] == len(self.full_angles):
             raw_sinogram = raw_sinogram.T
+
+        num_angles = raw_sinogram.shape[1]
+        if len(self.full_angles) != num_angles:
+            raw_start, raw_end, _ = self.config["physics"]["raw_angles"]
+            current_angles = np.linspace(raw_start, raw_end, num_angles)
+        else:
+            current_angles = self.full_angles
             
-        x_0_np = self.physics_operator.filtered_back_project(raw_sinogram, self.full_angles)
+        x_0_np = self.physics_operator.filtered_back_project(raw_sinogram, current_angles)
+
+        x_0_np = np.clip(x_0_np, a_min=0.0, a_max=None)
             
         target_h, target_w = self.image_dims
         pad_h = max(0, target_h - x_0_np.shape[0])
@@ -122,7 +135,7 @@ class TomographyDataset(Dataset):
             x_0_np, 
             ((pad_top, pad_bottom), (pad_left, pad_right)), 
             mode='constant', 
-            constant_values=0
+            constant_values=0.0
         )
 
         H, W = x_0_padded.shape
@@ -131,7 +144,7 @@ class TomographyDataset(Dataset):
             start_x = (W - target_w) // 2
             x_0_padded = x_0_padded[start_y:start_y+target_h, start_x:start_x+target_w]
         
-        # 2. Load the corresponding precomputed SIRT image and Uncertainty map
+        # Load the corresponding precomputed SIRT image and Uncertainty map
         base_name = os.path.basename(file_path).replace('.mrc', '')
         sirt_filename = f"{base_name}_cfg_{view_idx}.mrc"
         unc_filename = f"{base_name}_cfg_{view_idx}_unc.mrc"
@@ -145,13 +158,13 @@ class TomographyDataset(Dataset):
         with mrcfile.open(unc_path, permissive=True) as mrc:
             x_unc_np = np.squeeze(mrc.data).astype(np.float32).copy()
             
-        # 3. Apply matched spatial augmentations
+        # Apply matched spatial augmentations
         x_0_padded, x_sirt_np, x_unc_np = self._apply_spatial_augmentations(x_0_padded, x_sirt_np, x_unc_np)
 
         sirt_min = x_sirt_np.min()
         sirt_max = x_sirt_np.max()
         
-        # 4. Normalize and threshold
+        # Normalize and threshold
         threshold = self.config["data"]["noise_threshold"]
         x_sirt_processed = self._normalize_and_threshold(
             x_sirt_np, threshold=0.0, ref_min=sirt_min, ref_max=sirt_max
@@ -167,7 +180,7 @@ class TomographyDataset(Dataset):
         x_sirt_tensor = torch.from_numpy(x_sirt_processed).unsqueeze(0) 
         x_unc_tensor = torch.from_numpy(x_unc_processed).unsqueeze(0)
         
-        # 5. Extract geometry configuration from CSV
+        # Extract geometry configuration from CSV
         cfg_str = self.configs[actual_file_idx][view_idx]
         current_max_tilt, num_projections = map(float, cfg_str.split('_'))
         

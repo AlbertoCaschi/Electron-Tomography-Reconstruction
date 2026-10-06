@@ -6,26 +6,26 @@ import math
 from cDDPM_v2.config import CONFIG
 
 
-def apply_projector_guidance(x_0_pred, true_sinogram, physics_op, angles, uncertainty_map, lambda_step=0.0):
+def apply_projector_guidance(x_0_pred, true_sinogram, physics_op, angles, lambda_step=0.1):
     """
-    Enforces data consistency by taking a weighted gradient step towards the true measured sinogram.
+    Enforces measurement consistency strictly on the measured angles Theta_measured
     """
     device = x_0_pred.device
     target_h, target_w = x_0_pred.shape[2], x_0_pred.shape[3]
     
-    # Prepare network prediction (assumes batch size 1 for standard 2D skimage radon operations)
+    # Bring prediction to [0, 1] range in NumPy
     x_0_np = ((x_0_pred.squeeze() + 1.0) / 2.0).cpu().numpy()
 
-    # Forward project the current prediction
+    # Forward project only on the measured angles Theta_measured
     sim_sinogram = physics_op.forward_project(x_0_np, angles)
 
-    # Calculate exact error in the physical measurement domain (fixed sinogram scaling)
+    # Residual error in Radon space: y_measured - A(x_0)
     error_sinogram = true_sinogram - sim_sinogram
     
-    # Use unfiltered back-projection to represent the exact mathematical transpose (A^T)
+    # Transpose operation: A^T(error)
     error_img_padded = physics_op.back_project(error_sinogram, angles)
     
-    # Center crop back to network target dimensions
+    # Crop back to target dimensions
     H, W = error_img_padded.shape
     if H > target_h or W > target_w:
         start_y = (H - target_h) // 2
@@ -34,24 +34,18 @@ def apply_projector_guidance(x_0_pred, true_sinogram, physics_op, angles, uncert
     else:
         error_img = error_img_padded
 
-    # Adjust the prediction by the gradient error scaled by lambda
+    # Normalize the backprojection gradient by the number of measured angles
+    # to maintain stable step sizes regardless of whether projections are 8 or 20
+    error_img = error_img / len(angles)
+
+    # Gradient update on measured angles: x_0 <- x_0 + lambda * A^T(y - A x_0)
     x_0_projected_np = x_0_np + (lambda_step * error_img)
     x_0_projected_np = np.clip(x_0_projected_np, 0.0, 1.0)
     
-    # Convert back to tensors
-    x_0_pred_tensor = torch.from_numpy(x_0_np).unsqueeze(0).unsqueeze(0).to(device)
-    x_0_projected_tensor = torch.from_numpy(x_0_projected_np).unsqueeze(0).unsqueeze(0).to(device)
-
-    # Convert the uncertainty map from [-1, 1] back to a [0, 1] mask for alpha blending
-    u_map_blend = (uncertainty_map + 1.0) / 2.0
+    # Convert back to [-1, 1] tensor for diffusion
+    x_0_updated = (torch.from_numpy(x_0_projected_np).unsqueeze(0).unsqueeze(0).to(device) * 2.0) - 1.0
     
-    # Apply Uncertainty Weighting: High uncertainty (1) trusts the network, Low uncertainty (0) trusts the data
-    x_blended = (u_map_blend * x_0_pred_tensor) + ((1.0 - u_map_blend) * x_0_projected_tensor)
-    
-    # Shift back to DDPM [-1, 1] scale
-    x_0_updated_tensor = (x_blended * 2.0) - 1.0
-    
-    return x_0_updated_tensor.to(dtype=torch.float32)
+    return x_0_updated.to(dtype=torch.float32)
 
 
 def _extract(a, t, x_shape):
@@ -151,13 +145,12 @@ class GaussianDiffusion(nn.Module):
         # Clamp the predicted image directly
         x_0_pred = torch.clamp(x_0_pred, min=-1.0, max=1.0)
 
-        if true_sinogram is not None and physics_op is not None and angles is not None and uncertainty_map is not None:
+        if true_sinogram is not None and physics_op is not None and angles is not None:
             x_0_pred = apply_projector_guidance(
                 x_0_pred, 
                 true_sinogram, 
                 physics_op, 
                 angles,
-                uncertainty_map,
                 lambda_step=CONFIG["inference"]["projector_guidance_lambda"]
             )
         
