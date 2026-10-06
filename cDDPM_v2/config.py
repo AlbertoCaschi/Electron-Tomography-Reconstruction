@@ -11,8 +11,8 @@ CONFIG = {
 
     "acquisition": {
         "tilt_bounds": (20, 50),                            # sample a max tilt between +/- 20 and 50
-        "projection_bounds": (4, 20),                       # sample between 4 and 20 total views
-        "views_per_object": 5                               # the model is trained on each object 2 times per epoch (with different configurations)
+        "projection_bounds": (8, 20),                       # sample between 4 and 20 total views
+        "views_per_object": 7                               # the model is trained on each object 2 times per epoch (with different configurations)
     },
 
     "physics": {
