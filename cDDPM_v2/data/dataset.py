@@ -161,6 +161,8 @@ class TomographyDataset(Dataset):
         # Apply matched spatial augmentations
         x_0_padded, x_sirt_np, x_unc_np = self._apply_spatial_augmentations(x_0_padded, x_sirt_np, x_unc_np)
 
+        x_sirt_np = np.clip(x_sirt_np, 0.0, None)
+
         sirt_min = x_sirt_np.min()
         sirt_max = x_sirt_np.max()
         

@@ -10,9 +10,9 @@ CONFIG = {
     },
 
     "acquisition": {
-        "tilt_bounds": (20, 50),                            # sample a max tilt between +/- 20 and 50
-        "projection_bounds": (8, 20),                       # sample between 8 and 20 total views
-        "views_per_object": 7                               # the model is trained on each object 2 times per epoch (with different configurations)
+        "tilt_bounds": (10, 55),                            # sample a max tilt between +/- 20 and 50
+        "projection_bounds": (4, 20),                       # sample between 8 and 20 total views
+        "views_per_object": 8                               # the model is trained on each object 2 times per epoch (with different configurations)
     },
 
     "physics": {
@@ -38,24 +38,25 @@ CONFIG = {
 
     "training": {
         "num_workers" : 4,
-        "epochs": 70,
+        "epochs": 45,
         "batch_size": 1,
         "gradient_accumulation_steps": 32,                  # effective batch size = batch_size * grad. accumulation steps
         "use_gradient_clipping" : True,                     # avoid exploding gradients
         "lr_schedule" : "linear",
         "learning_rate": 1e-4,  
-        "warmup_epochs": 7, 
+        "warmup_epochs": 4, 
         "min_lr": 1e-6,                                     # minimum LR at the end of decay
-        "cfg_prob": 0.12,
+        "cfg_prob": 0.1,
+        "guidance_scale": 1.5,
         "save_frequency": 1,
         "vis_frequency" : 1,
         "output_dir": "./cDDPM_v2/checkpoints/",
         "log_dir": "./cDDPM_v2/logs/",
-        "resume_checkpoint": None
+        "resume_checkpoint": r"C:\Users\alberto.caschi\Desktop\Electron-Tomography-Reconstruction\cDDPM_v2\checkpoints\unet_checkpoint_interrupted.pt"
     },
 
     "inference" : {
-        "use_projector_guidance" : False,
+        "use_projector_guidance" : True,
         "projector_guidance_lambda" : 0.5
     }
 }

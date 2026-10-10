@@ -53,7 +53,8 @@ class ConditionalUNet(nn.Module):
             block_out_channels=block_out_channels,
             down_block_types=down_block_types,
             up_block_types=up_block_types,
-            class_embed_type="identity", # Tells the U-Net to add class_labels directly to the time embedding
+            mid_block_type="UNetMidBlock2D",
+            class_embed_type="identity",
         )
 
     def forward(self, x_t, x_sirt, x_unc, timestep, acq_config):
@@ -72,13 +73,13 @@ class ConditionalUNet(nn.Module):
         acq_config_normalized[:, 0] = acq_config[:, 0] / self.max_tilt
         acq_config_normalized[:, 1] = acq_config[:, 1] / self.max_proj
 
-        # Output shape is [Batch, time_embed_dim]. No sequence dimension (.unsqueeze(1)) is needed.
         cond_embeds = self.acq_embedder(acq_config_normalized)
         
-        # Pass cond_embeds into class_labels. The U-Net handles the ResNet injection internally.
+        # Pass the dummy tensor as the required positional argument
         x_0_pred = self.unet(
                 fused_input,
                 timestep,
+                encoder_hidden_states=None, 
                 class_labels=cond_embeds
             ).sample
         

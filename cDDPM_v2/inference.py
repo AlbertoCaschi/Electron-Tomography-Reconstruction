@@ -127,7 +127,9 @@ def process_and_reconstruct(unet, test_file, acquisition_config, device):
     x_sirt_np = None
     for _ in range(iterations):
         x_sirt_np = iradon_sart(sinogram_compute, theta=acquisition_config, image=x_sirt_np)
-        
+
+    x_sirt_np = np.clip(x_sirt_np, 0.0, None)
+    
     x_sirt_np = center_crop(x_sirt_np, target_h, target_w)
     x_sirt_np = np.ascontiguousarray(x_sirt_np, dtype=np.float32)
 
@@ -252,7 +254,7 @@ def run_streamlit_inference(model, test_file, output_image_path, output_sirt_pat
 
 if __name__ == "__main__":
     CHECKPOINT = os.path.join(CONFIG["training"]["output_dir"], "unet_checkpoint_best.pt")
-    TEST_FILE = r".\cDDPM_v2\dataset\synthetic_raw\synthetic_sino_0000.mrc"
-    ACQUISITION_CONFIG = np.arange(-50, 51, 5) # specific missing wedge and projection setup
+    TEST_FILE = r"./assets/rect_oval.mrc" #r".\cDDPM_v2\dataset\synthetic_raw\synthetic_sino_0000.mrc"
+    ACQUISITION_CONFIG = np.arange(-40, 41, 5) # specific missing wedge and projection setup
     
     run_inference(CHECKPOINT, TEST_FILE, ACQUISITION_CONFIG)

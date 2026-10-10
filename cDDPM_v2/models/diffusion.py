@@ -170,7 +170,7 @@ class GaussianDiffusion(nn.Module):
 
 
     @torch.no_grad()
-    def p_sample_loop(self, model, x_sirt, acq_config, uncertainty_map, true_sinogram=None, physics_op=None, angles=None, guidance_scale=1.0):
+    def p_sample_loop(self, model, x_sirt, acq_config, uncertainty_map, true_sinogram=None, physics_op=None, angles=None, guidance_scale=CONFIG["training"]["guidance_scale"]):
         """
         The Complete Reverse Process: Generates a sample from pure noise.
         """

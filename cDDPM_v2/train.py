@@ -66,7 +66,6 @@ def train_model(config):
     diffusion = GaussianDiffusion(config).to(device)
     
     optimizer = optim.AdamW(unet.parameters(), lr=config["training"]["learning_rate"], weight_decay=1e-4)
-    criterion = nn.L1Loss() 
 
     epochs = config["training"]["epochs"]
     warmup_epochs = config["training"].get("warmup_epochs", 5)
@@ -153,7 +152,7 @@ def train_model(config):
     scaler = torch.amp.GradScaler('cuda', enabled=is_cuda)
     
     # TV Loss Base Weight
-    lambda_tv_base = 0.15
+    lambda_tv_base = 0.03
 
     try:
         # epoch Loop
@@ -194,17 +193,26 @@ def train_model(config):
                     # Network now outputs the estimated clean image (x_0) directly
                     x_0_pred = unet(x_t, x_sirt_in, x_unc_in, t, acq_config_in)
                     
-                    # Base L1 Fidelity Loss
-                    loss_l1 = criterion(x_0_pred, x_0)
+                    # Compute absolute difference in FP32 to prevent FP16 overflow
+                    diff = torch.abs(x_0_pred.float() - x_0.float())
+
+                    # Apply Professor's Smoothed L_0.5 Loss 
+                    eps = 1e-3
+                    loss_p05_per_sample = (torch.sqrt(diff + eps) - (eps ** 0.5)).mean(dim=[1, 2, 3])
+
+                    # Apply Min-SNR weighting (prevents high-t blob averaging)
+                    alpha_bar_t = diffusion.alphas_cumprod[t]
+                    snr = alpha_bar_t / (1.0 - alpha_bar_t + 1e-8)
+                    snr_weight = torch.clamp(snr, min=0.1, max=5.0)
+
+                    # Final Data Fidelity Loss
+                    loss_data = (snr_weight * loss_p05_per_sample).mean()
                     
                     # Dynamic Total Variation Loss
                     tv_per_sample = total_variation_loss(x_0_pred)
-                    alpha_bar_t = diffusion.alphas_cumprod[t]
-                    
-                    # Weight scales from ~0.0 at t=1000 to lambda_tv_base at t=0
                     loss_tv = (lambda_tv_base * alpha_bar_t * tv_per_sample).mean()
                     
-                    loss = (loss_l1 + loss_tv) / accum_steps
+                    loss = (loss_data + loss_tv) / accum_steps
                 
                 scaler.scale(loss).backward()
                 
@@ -212,7 +220,6 @@ def train_model(config):
                     if config["training"]["use_gradient_clipping"]:
                         scaler.unscale_(optimizer)
                         torch.nn.utils.clip_grad_norm_(unet.parameters(), max_norm=1.0)
-                        # computes the norm of the gradients and proportionally scales them down if grad_norm > max_norm
 
                     scaler.step(optimizer)
                     scaler.update()
@@ -243,12 +250,21 @@ def train_model(config):
                     with torch.amp.autocast(device.type):
                         x_0_pred = unet(x_t, x_sirt, x_unc, t, acq_config)
                         
-                        loss_l1 = criterion(x_0_pred, x_0)
-                        tv_per_sample = total_variation_loss(x_0_pred)
+                        # Apply identical L_0.5 + Min-SNR logic for validation
+                        diff = torch.abs(x_0_pred.float() - x_0.float())
+                        eps = 1e-3
+                        loss_p05_per_sample = (torch.sqrt(diff + eps) - (eps ** 0.5)).mean(dim=[1, 2, 3])
+
                         alpha_bar_t = diffusion.alphas_cumprod[t]
+                        snr = alpha_bar_t / (1.0 - alpha_bar_t + 1e-8)
+                        snr_weight = torch.clamp(snr, min=0.1, max=5.0)
+
+                        loss_data = (snr_weight * loss_p05_per_sample).mean()
+                        
+                        tv_per_sample = total_variation_loss(x_0_pred)
                         loss_tv = (lambda_tv_base * alpha_bar_t * tv_per_sample).mean()
                         
-                        loss = loss_l1 + loss_tv
+                        loss = loss_data + loss_tv
                         
                     val_loss += loss.item()
                     
