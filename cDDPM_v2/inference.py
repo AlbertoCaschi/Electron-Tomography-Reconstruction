@@ -127,8 +127,6 @@ def process_and_reconstruct(unet, test_file, acquisition_config, device):
     x_sirt_np = None
     for _ in range(iterations):
         x_sirt_np = iradon_sart(sinogram_compute, theta=acquisition_config, image=x_sirt_np)
-
-    x_sirt_np = np.clip(x_sirt_np, 0.0, None)
     
     x_sirt_np = center_crop(x_sirt_np, target_h, target_w)
     x_sirt_np = np.ascontiguousarray(x_sirt_np, dtype=np.float32)
