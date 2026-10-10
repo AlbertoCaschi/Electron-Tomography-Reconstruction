@@ -214,7 +214,7 @@ def load_private_model(model_type):
     
     try:
         # Create a local 'models' directory if it doesn't exist
-        os.makedirs("models", exist_ok=True)
+        os.makedirs("trained_models", exist_ok=True)
         
         if model_type == "VAE":
             url = "https://huggingface.co/albertocaschi/VAEResNet_Tomography/resolve/main/VAEResNet.pth"
