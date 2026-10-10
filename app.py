@@ -16,9 +16,13 @@ from VAEResNet.config import CONFIG as VAE_CONFIG
 from VAEResNet.models.vae import TomographyVAE
 from VAEResNet.inference import run_streamlit_inference as vae_inference
 
-from cDDPM.config import CONFIG as CDDPM_CONFIG
-from cDDPM.models.unet import ConditionalUNet
-from cDDPM.inference import run_streamlit_inference as cddpm_inference
+from cDDPM.config import CONFIG as CDDPM_CONFIG_v1
+from cDDPM.models.unet import ConditionalUNet as ConditionalUNet_v1
+from cDDPM.inference import run_streamlit_inference as cddpm_inference_v1
+
+from cDDPM_v2.config import CONFIG as CDDPM_CONFIG_v2
+from cDDPM_v2.models.unet import ConditionalUNet as ConditionalUNet_v2
+from cDDPM_v2.inference import run_streamlit_inference as cddpm_inference_v2
 
 
 st.set_page_config(
@@ -219,6 +223,9 @@ def load_private_model(model_type):
         elif model_type == "cDDPM":
             url = "https://huggingface.co/albertocaschi/cDDPM_Tomography/resolve/main/cDDPM.pt"
             local_path = os.path.join("trained_models", "cDDPM.pt")
+        elif model_type == "cDDPM_v2":
+                    url = "https://huggingface.co/albertocaschi/cDDPM_v2_Tomography/resolve/main/cDDPM_v2.pt"
+                    local_path = os.path.join("trained_models", "cDDPM_v2.pt")
         else:
             status.error(f"Unknown model type: {model_type}")
             return None
@@ -251,8 +258,12 @@ def load_private_model(model_type):
             model.load_state_dict(checkpoint['model_state_dict'])
 
         elif model_type == "cDDPM":
-            model = ConditionalUNet(CDDPM_CONFIG).to(device)
+            model = ConditionalUNet_v1(CDDPM_CONFIG_v1).to(device)
             model.load_state_dict(checkpoint['model_state_dict'])
+
+        elif model_type == "cDDPM_v2":
+                    model = ConditionalUNet_v2(CDDPM_CONFIG_v2).to(device)
+                    model.load_state_dict(checkpoint['model_state_dict'])
 
         model.eval()
         
@@ -810,7 +821,7 @@ elif selected_tab == "Diffusion Model":
                             result_image_temp, fbp_image_temp = hf_space_client.predict(
                                 mrc_file=handle_file(mrc_file_path),
                                 config_selection=config_choice,
-                                api_name="/predict"
+                                api_name="/predict_v1"
                             )
                             
                             shutil.copy(result_image_temp, output_image_path)
@@ -822,7 +833,7 @@ elif selected_tab == "Diffusion Model":
                             cddpm_model = load_private_model("cDDPM")
                             
                             if cddpm_model is not None:
-                                cddpm_inference(
+                                cddpm_inference_v1(
                                     model=cddpm_model,
                                     test_file=mrc_file_path,
                                     output_image_path=output_image_path,
@@ -843,7 +854,7 @@ elif selected_tab == "Diffusion Model":
                             
                             with open(output_fbp_path, "rb") as file:
                                 st.download_button(
-                                    label="📥  Download FBP reconstruction (PNG)",
+                                    label="📥  Download reconstruction (PNG)",
                                     data=file,
                                     file_name=f"{filename[:-4]}_reconstruction_result.png",
                                     mime="image/png",
@@ -863,6 +874,296 @@ elif selected_tab == "Diffusion Model":
 
 elif selected_tab == "Improved Diffusion Model":
 
-    st.markdown("""
-                Coming soon!
-                """)
+    # Overview
+        col_intro, col_arch = st.columns(2, gap="large")
+    
+        with col_intro:
+            st.markdown("""
+                <div class="glass-card">
+                    <div class="section-header">Method Overview</div>
+                    <p style="color: #CBD5E1; line-height: 1.7; text-align: justify; text-justify: inter-word;">
+                        This method addresses the electron-tomography missing wedge and projections problem by training a generative diffusion model to reconstruct 2D slices, using incomplete Filtered Back Projection (FBP) images as deterministic spatial constraints. Using 2,500 synthetic samples with noise and augmentations, the network learns to map physically consistent features. The mathematical framework relies on a <strong>Gaussian diffusion process</strong> that systematically adds and removes noise over a scheduled progression across 1000 timesteps. By learning the reverse of this degradation, the method enables high-fidelity 2D slice recovery from severely incomplete projection inputs.
+                    <div class="section-header" style="margin-top: 1.5rem;">Model Architecture</div>
+                    <p style="color: #CBD5E1; line-height: 1.7; text-align: justify; text-justify: inter-word;">
+                        This model is a <strong>Conditional Denoising Diffusion Probabilistic Model</strong> (<strong>cDDPM</strong>) built upon a 4-level U-Net backbone. Rather than transforming a noisy image directly into a clear version in a single pass, the network is trained to iteratively predict the specific noise tensor at each timestep.  To know exactly which object needs to be reconstructed, the model employs an <i>early fusion</i> conditioning mechanism: the current noisy image and the static, incomplete 2D FBP reconstruction are concatenated directly at the channel level before entering the network.  The U-Net architecture is optimized for both local and global awareness: it utilizes standard convolutional blocks for extracting fine structural details at higher resolutions, and selectively injects self-attention exclusively at its deepest bottleneck (Level 4) to ensure global structural coherence without overwhelming memory. Because of this robust, structurally-guided architecture, the model is able to generalize and successfully reconstruct images with a projection wedge.
+                    </p>
+                    <p style="color: #B5C3D2; line-height: 1.7; font-size: 0.7rem;">
+                        Check the slides for additional information.
+                    </p>
+                </div>
+            """, unsafe_allow_html=True)
+    
+        with col_arch:
+            try:
+                arch_image = Image.open("assets/cddpm_v2_architecture.png")
+    
+                spacer_left, img_col, spacer_right = st.columns([1, 7, 1])
+                with img_col:
+                    st.image(arch_image, caption="U-Net cDDPM model architecture", use_container_width=True)
+    
+            except FileNotFoundError:
+                st.info("**Architecture diagram placeholder:** Place 'cddpm_v2_architecture.png' in your 'assets/' folder to display the network pipeline here.")
+    
+        st.divider()
+    
+        ## MODEL TESTING PART
+        col_config, col_exec = st.columns(2, gap="large")
+    
+        # LEFT COLUMN: Configuration
+        with col_config:
+            st.markdown('<div class="section-header">Simulation Configuration</div>', unsafe_allow_html=True)
+    
+            st.markdown("<br>", unsafe_allow_html=True)
+            execution_mode = st.radio(
+                "Select Execution Backend:",
+                ["Remote GPU", "Local Execution"],
+                horizontal=True,
+                key="radio_exec_tab3"
+            )
+    
+            input_mode = st.radio(
+                "Choose sinogram source data:",
+                ["Use a preloaded example file", "Upload custom .mrc file"],
+                horizontal=True,
+                key="radio_tab3"
+            )
+    
+            if input_mode == "Upload custom .mrc file":
+                st.markdown("""
+                    <div class="info-box">
+                        <strong>Please note:</strong>
+                        <ul>
+                        <li>Upload a full sinogram (-90° to +90°, 1° steps). The app will simulate the missing wedge and projections you choose below.</li>
+                        <li>Input sinograms must have the following size: <strong>[362, 181]</strong>.</li>
+                        </ul>
+                    </div>
+                """, unsafe_allow_html=True)
+    
+            mrc_file_path = None
+    
+            if input_mode == "Use a preloaded example file":
+                example_choice = st.selectbox(
+                    "Select an example sinogram:",
+                    [
+                        "Rectangle",
+                        "Oval 1",
+                        "Oval 2",
+                        "Rectangle + Oval",
+                        "Circle",
+                        "2 Squares",
+                        "Catalyst"
+                    ],
+                    key="sb_example_tab3"
+                )
+    
+                if "Rectangle" in example_choice and "Oval" in example_choice:
+                    filename = "rect_oval.mrc"
+                elif "Oval 1" in example_choice:
+                    filename = "oval1.mrc"
+                elif "Oval 2" in example_choice:
+                    filename = "oval2.mrc"
+                elif "Rectangle" in example_choice:
+                    filename = "rectangle.mrc"
+                elif "Circle" in example_choice:
+                    filename = "circle.mrc"
+                elif "2 Squares" in example_choice:
+                    filename = "2_squares.mrc"
+                elif "Catalyst" in example_choice:
+                    filename = "catalyst.mrc"
+    
+                mrc_file_path = os.path.join("assets", filename)
+                
+                if os.path.exists(mrc_file_path):
+                    st.success(f"**{example_choice}** initialized and ready.")
+                else:
+                    st.warning(f"Placeholder: upload '{filename}' to your repository's 'assets/' folder.")
+                    mrc_file_path = None
+    
+            else:
+                uploaded_file = st.file_uploader("Upload an experimental .mrc sinogram", type=["mrc"], key="uploader_tab3")
+                if uploaded_file is not None:
+                    filename = "uploaded.mrc"
+                    mrc_file_path = os.path.join("assets", filename)
+                    os.makedirs("assets", exist_ok=True) 
+                    with open(mrc_file_path, "wb") as f:
+                        f.write(uploaded_file.getbuffer())
+                    st.success("Custom .mrc file uploaded and parsed successfully.")
+    
+            st.markdown("<br>", unsafe_allow_html=True)
+            
+            config_choice = st.selectbox(
+                "Select missing wedge and projection simulation:",
+                [
+                    "±50° Wedge (5° Step)",
+                    "±50° Wedge (10° Step)",
+                    "±50° Wedge (20° Step)",
+                    "±40° Wedge (5° Step)",
+                    "±40° Wedge (10° Step)",
+                    "±40° Wedge (20° Step)",
+                    "±30° Wedge (5° Step)",
+                    "±30° Wedge (10° Step)",
+                    "±30° Wedge (15° Step)",
+                    "±20° Wedge (5° Step)",
+                    "±20° Wedge (10° Step)",
+                    "±20° Wedge (15° Step)"
+                ],
+                key="sb_wedge_tab3"
+            )
+    
+            config_map = {
+                "±50° Wedge (5° Step)": {'range': (-50, 50), 'step': 5},
+                "±50° Wedge (10° Step)": {'range': (-50, 50), 'step': 10},
+                "±50° Wedge (20° Step)": {'range': (-50, 50), 'step': 20},
+                "±40° Wedge (5° Step)": {'range': (-40, 40), 'step': 5},
+                "±40° Wedge (10° Step)": {'range': (-40, 40), 'step': 10},
+                "±40° Wedge (20° Step)": {'range': (-40, 40), 'step': 20},
+                "±30° Wedge (5° Step)": {'range': (-30, 30), 'step': 5},
+                "±30° Wedge (10° Step)": {'range': (-30, 30), 'step': 10},
+                "±30° Wedge (15° Step)": {'range': (-30, 30), 'step': 15},
+                "±20° Wedge (5° Step)": {'range': (-20, 20), 'step': 5},
+                "±20° Wedge (10° Step)": {'range': (-20, 20), 'step': 10},
+                "±20° Wedge (15° Step)": {'range': (-20, 20), 'step': 15}
+            }
+            acquisition_config = config_map[config_choice]
+    
+    
+        # --- RIGHT COLUMN: Inference and results ---
+        with col_exec:
+            st.markdown('<div class="section-header">Inference & Results</div>', unsafe_allow_html=True)
+            
+            if mrc_file_path and os.path.exists(mrc_file_path):
+                
+                with st.container():
+                    st.markdown("<div style='padding-top: 10px;'></div>", unsafe_allow_html=True)
+                    run_btn = st.button("🚀 Run Tomographic Reconstruction", use_container_width=True, type="primary", key="btn_run_tab3")
+                    
+                    if run_btn:
+                        # Defining local destinations for the returned backend images
+                        output_image_path = os.path.join("assets", "full_reconstruction_result.png")
+                        output_sirt_path = os.path.join("assets", "sirt_reconstruction_result.png")
+                        
+                        loading_placeholder = st.empty()
+    
+                        loading_placeholder.markdown("""
+                            <style>
+                            .custom-loader-container {
+                                display: flex;
+                                flex-direction: column;
+                                align-items: center;
+                                justify-content: center;
+                                padding: 3rem;
+                                background: rgba(17, 25, 40, 0.4);
+                                border-radius: 12px;
+                                border: 1px solid rgba(0, 242, 254, 0.2);
+                                margin: 2rem 0;
+                            }
+                            
+                            .scanner-track {
+                                width: 80%;
+                                height: 4px;
+                                background: rgba(255, 255, 255, 0.1);
+                                border-radius: 4px;
+                                position: relative;
+                                overflow: hidden;
+                                margin-top: 1.5rem;
+                            }
+                            
+                            /* The moving glowing beam */
+                            .scanner-beam {
+                                position: absolute;
+                                top: 0;
+                                left: -50%;
+                                width: 50%;
+                                height: 100%;
+                                background: linear-gradient(90deg, transparent, #00f2fe, #4facfe, transparent);
+                                animation: scan 2s infinite linear;
+                            }
+                            
+                            .loader-text {
+                                color: #00f2fe;
+                                font-weight: 600;
+                                font-size: 1.1rem;
+                                letter-spacing: 2px;
+                                margin-top: 1rem;
+                                animation: pulseText 2s infinite ease-in-out;
+                            }
+                            
+                            /* Animations */
+                            @keyframes scan {
+                                0% { left: -50%; }
+                                100% { left: 100%; }
+                            }
+                            
+                            @keyframes pulseText {
+                                0%, 100% { opacity: 0.5; text-shadow: 0 0 0 transparent; }
+                                50% { opacity: 1; text-shadow: 0 0 10px rgba(0, 242, 254, 0.6); }
+                            }
+                            </style>
+                            
+                            <div class="custom-loader-container">
+                                <div style="font-size: 2rem; animation: pulseText 2s infinite;">RECONSTRUCTING 2D SLICE</div>
+                                <div class="loader-text">Please wait (may take a minute)...</div>
+                                <div class="scanner-track">
+                                    <div class="scanner-beam"></div>
+                                </div>
+                            </div>
+                        """, unsafe_allow_html=True)
+                        
+                        try:
+                            if execution_mode == "Remote GPU":
+                                # --- Call the remote Hugging Face API ---
+                                hf_space_client = Client("albertocaschi/tomo-cddpm-backend")
+                                
+                                result_image_temp, sirt_image_temp = hf_space_client.predict(
+                                    mrc_file=handle_file(mrc_file_path),
+                                    config_selection=config_choice,
+                                    api_name="/predict_v2"
+                                )
+                                
+                                shutil.copy(result_image_temp, output_image_path)
+                                shutil.copy(sirt_image_temp, output_sirt_path)
+                                
+                            else:
+                                # --- Execute Local Inference ---
+                                st.info("Loading local cDDPM model. This may take a moment...")
+                                cddpm_model = load_private_model("cDDPM_v2")
+                                
+                                if cddpm_model is not None:
+                                    cddpm_inference_v2(
+                                        model=cddpm_model,
+                                        test_file=mrc_file_path,
+                                        output_image_path=output_image_path,
+                                        output_sirt_path=output_sirt_path,
+                                        acquisition_config_dict=acquisition_config
+                                    )
+                                else:
+                                    st.error("Failed to load local model. Check logs.")
+                                    st.stop()
+                            
+                            loading_placeholder.empty()
+                            
+                            if os.path.exists(output_image_path):
+                                st.success(f"Reconstruction complete using {execution_mode}!")
+                                
+                                result_img = Image.open(output_image_path)
+                                st.image(result_img, caption="Reconstruction output: input sinogram and neural networks solution", use_container_width=False)
+                                
+                                with open(output_sirt_path, "rb") as file:
+                                    st.download_button(
+                                        label="📥  Download reconstruction (PNG)",
+                                        data=file,
+                                        file_name=f"{filename[:-4]}_reconstruction_result.png",
+                                        mime="image/png",
+                                        use_container_width=True,
+                                        key="btn_dl_tab3"
+                                    )
+                            else:
+                                st.error("Inference executed, but output image could not be loaded locally.")
+                                
+                        except Exception as e:
+                            loading_placeholder.empty()
+                            st.error(f"Inference failed: {e}")
+                    else:
+                        st.info("System ready. Configure parameters on the left and initialize reconstruction.")
+            else:
+                st.warning("Please select or upload a valid .mrc file.")

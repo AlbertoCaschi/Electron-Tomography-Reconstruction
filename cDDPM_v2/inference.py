@@ -235,13 +235,14 @@ def run_streamlit_inference(model, test_file, output_image_path, output_sirt_pat
 
     # Save SIRT file
     os.makedirs(os.path.dirname(output_sirt_path), exist_ok=True)
-    sirt_8bit = x_sirt_vis - np.min(x_sirt_vis)
-    if np.max(sirt_8bit) > 0:
-        sirt_8bit = (sirt_8bit / np.max(sirt_8bit) * 255).astype(np.uint8)
+    recon_8bit = x_recon_vis - np.min(x_recon_vis)
+    if np.max(recon_8bit) > 0:
+        recon_8bit = (recon_8bit / np.max(recon_8bit) * 255).astype(np.uint8)
     else:
-        sirt_8bit = sirt_8bit.astype(np.uint8)
+        recon_8bit = recon_8bit.astype(np.uint8)
 
-    Image.fromarray(sirt_8bit).save(output_sirt_path)
+    # We are saving it to output_sirt_path
+    Image.fromarray(recon_8bit).save(output_sirt_path)
 
     # Save plot
     plot_results(

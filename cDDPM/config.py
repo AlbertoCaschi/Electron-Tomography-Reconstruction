@@ -4,14 +4,14 @@ CONFIG = {
     "data": {
         "dataset_path": "./cDDPM/dataset/synthetic_raw/",
         "image_dims": (368, 368),                          # 362x362 -> 368x368: the model can reduce dimensions properly (padding)
-        "train_samples": 2500,
-        "val_samples": 500
+        "train_samples": 1000,
+        "val_samples": 250
     },
 
     "acquisition": {
-        "tilt_bounds": (40, 60),                            # sample a max tilt between +/- 40 and 60
-        "projection_bounds": (8, 20),                       # sample between 8 and 20 total views
-        "views_per_object": 5                               # the model is trained on each object 5 times per epoch (with different configurations)
+        "tilt_bounds": (20, 50),                            # sample a max tilt between +/- 40 and 60
+        "projection_bounds": (5, 20),                       # sample between 8 and 20 total views
+        "views_per_object": 3                               # the model is trained on each object 5 times per epoch (with different configurations)
     },
 
     "physics": {
@@ -35,18 +35,18 @@ CONFIG = {
     },
 
     "training": {
-        "epochs": 30,
+        "epochs": 20,
         "batch_size": 4,
         "gradient_accumulation_steps": 2,                   # effective batch size = batch_size * grad. accumulation steps
         "use_gradient_clipping" : True,                     # avoid exploding gradients
         "learning_rate": 1e-4,  
-        "warmup_epochs": 5, 
+        "warmup_epochs": 3, 
         "min_lr": 1e-6,                                     # minimum LR at the end of cosine decay
         "save_frequency": 1,
         "vis_frequency" : 1,
         "output_dir": "./cDDPM/checkpoints/",
         "log_dir": "./cDDPM/logs/",
-        "resume_checkpoint": None
+        "resume_checkpoint": r"C:\Users\Alberto\Desktop\Electron-Tomography-Reconstruction\cDDPM\checkpoints\unet_checkpoint_interrupted.pt"
     }
 }
 
