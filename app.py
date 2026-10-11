@@ -1021,7 +1021,6 @@ elif selected_tab == "Improved Diffusion Model":
                     "±30° Wedge (10° Step)",
                     "±30° Wedge (15° Step)",
                     "±20° Wedge (5° Step)",
-                    "±20° Wedge (10° Step)"
                 ],
                 key="sb_wedge_tab3"
             )
@@ -1037,7 +1036,6 @@ elif selected_tab == "Improved Diffusion Model":
                 "±30° Wedge (10° Step)": {'range': (-30, 30), 'step': 10},
                 "±30° Wedge (15° Step)": {'range': (-30, 30), 'step': 15},
                 "±20° Wedge (5° Step)": {'range': (-20, 20), 'step': 5},
-                "±20° Wedge (10° Step)": {'range': (-20, 20), 'step': 10}
             }
             acquisition_config = config_map[config_choice]
     
