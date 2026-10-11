@@ -882,11 +882,28 @@ elif selected_tab == "Improved Diffusion Model":
                 <div class="glass-card">
                     <div class="section-header">Method Overview</div>
                     <p style="color: #CBD5E1; line-height: 1.7; text-align: justify; text-justify: inter-word;">
-                        This method addresses the electron-tomography missing wedge and projections problem by training a generative diffusion model to reconstruct 2D slices, using incomplete Filtered Back Projection (FBP) images as deterministic spatial constraints. Using 2,500 synthetic samples with noise and augmentations, the network learns to map physically consistent features. The mathematical framework relies on a <strong>Gaussian diffusion process</strong> that systematically adds and removes noise over a scheduled progression across 1000 timesteps. By learning the reverse of this degradation, the method enables high-fidelity 2D slice recovery from severely incomplete projection inputs.
-                    <div class="section-header" style="margin-top: 1.5rem;">Model Architecture</div>
-                    <p style="color: #CBD5E1; line-height: 1.7; text-align: justify; text-justify: inter-word;">
-                        This model is a <strong>Conditional Denoising Diffusion Probabilistic Model</strong> (<strong>cDDPM</strong>) built upon a 4-level U-Net backbone. Rather than transforming a noisy image directly into a clear version in a single pass, the network is trained to iteratively predict the specific noise tensor at each timestep.  To know exactly which object needs to be reconstructed, the model employs an <i>early fusion</i> conditioning mechanism: the current noisy image and the static, incomplete 2D FBP reconstruction are concatenated directly at the channel level before entering the network.  The U-Net architecture is optimized for both local and global awareness: it utilizes standard convolutional blocks for extracting fine structural details at higher resolutions, and selectively injects self-attention exclusively at its deepest bottleneck (Level 4) to ensure global structural coherence without overwhelming memory. Because of this robust, structurally-guided architecture, the model is able to generalize and successfully reconstruct images with a projection wedge.
+                        This model is based on the standard <strong>conditional diffusion model</strong> (<strong>cDDPM</strong>) for electron tomography, but we heavily modified it to handle extreme cases where very few projections are available or the missing wedge is large. We made several key changes to help the model produce the highest quality reconstructions possible:
                     </p>
+                    <ul style="color: #CBD5E1; line-height: 1.7; text-align: justify; text-justify: inter-word; padding-left: 20px;">
+                        <li style="margin-bottom: 0.8rem;">
+                            <strong>Conditioning on SIRT rather than FBP:</strong> Instead of using Filtered Back-Projection (FBP) as a baseline, the model is guided by a <i>SIRT</i> (Simultaneous Iterative Reconstruction Technique) reconstruction. FBP creates heavy streak artifacts and negative pixel values when projection data is limited, whereas SIRT gives the network a much cleaner and more stable starting point.
+                        </li>
+                        <li style="margin-bottom: 0.8rem;">
+                            <strong>Injecting Acquisition Data via FiLM:</strong> The model is fed the exact acquisition setup (like the maximum tilt angle and the total number of projections) so it knows exactly how the artifacts are distributed. Instead of using complex cross-attention layers, this data is passed through a simple network (MLP), combined with the diffusion timestep, and efficiently applied to every layer of the model using <i>FiLM</i>.
+                        </li>
+                        <li style="margin-bottom: 0.8rem;">
+                            <strong>Dynamic Uncertainty Mapping:</strong> We give the model an uncertainty map that calculates the variance of each pixel across all the different projections. This map shows the model exactly which parts of the image need to be "hallucinated" (filled in) and which parts are highly reliable and should not be changed.
+                        </li>
+                        <li style="margin-bottom: 0.8rem;">
+                            <strong>New Multi-Component Loss Function:</strong> We changed the training goal so the model directly predicts the clean image (<i>x<sub>0</sub></i>). We also replaced the standard MSE loss with a combination of two metrics: <strong>L1</strong> (to ensure accurate pixel values) and <strong>Total Variation (TV)</strong> (to keep the background clean and shapes smooth).
+                        </li>
+                        <li style="margin-bottom: 0.8rem;">
+                            <strong>Classifier-Free Guidance (CFG):</strong> During training, we randomly hide the conditioning data from the model. This forces the network to learn how to generate realistic shapes on its own. During inference, this technique strongly pushes the model to generate clearer and more accurate structures.
+                        </li>
+                        <li>
+                            <strong>Projector Guidance during Inference:</strong> At each step of the denoising process, the model's prediction is checked against the actual projections measured by the microscope. Any mathematical errors are calculated and used to correct the image, guaranteeing that the final reconstruction perfectly matches the real physical data.
+                        </li>
+                    </ul>
                     <p style="color: #B5C3D2; line-height: 1.7; font-size: 0.7rem;">
                         Check the slides for additional information.
                     </p>
@@ -1004,8 +1021,7 @@ elif selected_tab == "Improved Diffusion Model":
                     "±30° Wedge (10° Step)",
                     "±30° Wedge (15° Step)",
                     "±20° Wedge (5° Step)",
-                    "±20° Wedge (10° Step)",
-                    "±20° Wedge (15° Step)"
+                    "±20° Wedge (10° Step)"
                 ],
                 key="sb_wedge_tab3"
             )
@@ -1021,8 +1037,7 @@ elif selected_tab == "Improved Diffusion Model":
                 "±30° Wedge (10° Step)": {'range': (-30, 30), 'step': 10},
                 "±30° Wedge (15° Step)": {'range': (-30, 30), 'step': 15},
                 "±20° Wedge (5° Step)": {'range': (-20, 20), 'step': 5},
-                "±20° Wedge (10° Step)": {'range': (-20, 20), 'step': 10},
-                "±20° Wedge (15° Step)": {'range': (-20, 20), 'step': 15}
+                "±20° Wedge (10° Step)": {'range': (-20, 20), 'step': 10}
             }
             acquisition_config = config_map[config_choice]
     
@@ -1102,7 +1117,7 @@ elif selected_tab == "Improved Diffusion Model":
                             
                             <div class="custom-loader-container">
                                 <div style="font-size: 2rem; animation: pulseText 2s infinite;">RECONSTRUCTING 2D SLICE</div>
-                                <div class="loader-text">Please wait (may take a minute)...</div>
+                                <div class="loader-text">Please wait (may take a few minutes)...</div>
                                 <div class="scanner-track">
                                     <div class="scanner-beam"></div>
                                 </div>
