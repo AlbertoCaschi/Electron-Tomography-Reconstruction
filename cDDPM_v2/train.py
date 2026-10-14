@@ -18,11 +18,8 @@ def total_variation_loss(img):
     Computes the anisotropic Total Variation (TV) loss for a batch of images.
     Takes the mean across spatial and channel dimensions to prevent scale explosion.
     """
-    # img_shape = [B, C, H, W]
     tv_h = torch.abs(img[:, :, 1:, :] - img[:, :, :-1, :]).mean(dim=[1, 2, 3])
-    # we compare neighboring pixels along rows and compute the mean of their difference
     tv_w = torch.abs(img[:, :, :, 1:] - img[:, :, :, :-1]).mean(dim=[1, 2, 3])
-    # we compare neighboring pixels along columns and compute the mean of their difference
     return tv_h + tv_w
 
 
@@ -36,7 +33,6 @@ def train_model(config):
     else:
         device = torch.device("cpu")
         
-
     print(f"Using device: {device}")
     
     # Datasets and dataloaders
@@ -52,7 +48,6 @@ def train_model(config):
         val_dataset, batch_size=config["training"]["batch_size"], 
         shuffle=False, num_workers=config["training"]["num_workers"], drop_last=False
     )
-    
     
     # the first element of the val set is used to visualize progress every epoch
     fixed_x_0, fixed_x_sirt, fixed_x_unc, fixed_acq = val_dataset[0]
@@ -131,14 +126,12 @@ def train_model(config):
             
         print(f"Resuming at Epoch {start_epoch}. Current Best Val Loss: {best_val_loss:.6f}")
     
-
     # Creating the CSV file (if training is started from the beginning)
     csv_log_path = os.path.join(log_dir, "training_log.csv")
     if start_epoch == 1 or not os.path.exists(csv_log_path):
         with open(csv_log_path, mode='w', newline='') as f:
             writer = csv.writer(f)
             writer.writerow(["Epoch", "Train Loss", "Val Loss"])
-
 
     ## TRAINING ##
     print("\n=== Starting Training ===")
@@ -155,7 +148,6 @@ def train_model(config):
     lambda_tv_base = 0.03
 
     try:
-        # epoch Loop
         for epoch in range(start_epoch, epochs + 1):
             current_epoch = epoch
             
@@ -190,23 +182,18 @@ def train_model(config):
                     acq_config_in = acq_config
 
                 with torch.amp.autocast(device.type):
-                    # Network now outputs the estimated clean image (x_0) directly
                     x_0_pred = unet(x_t, x_sirt_in, x_unc_in, t, acq_config_in)
                     
-                    # Compute absolute difference in FP32 to prevent FP16 overflow
-                    diff = torch.abs(x_0_pred.float() - x_0.float())
+                    # Standard L1 Loss per sample
+                    loss_l1_per_sample = torch.abs(x_0_pred - x_0).mean(dim=[1, 2, 3])
 
-                    # Apply Professor's Smoothed L_0.5 Loss 
-                    eps = 1e-3
-                    loss_p05_per_sample = (torch.sqrt(diff + eps) - (eps ** 0.5)).mean(dim=[1, 2, 3])
-
-                    # Apply Min-SNR weighting (prevents high-t blob averaging)
+                    # Apply Min-SNR weighting
                     alpha_bar_t = diffusion.alphas_cumprod[t]
                     snr = alpha_bar_t / (1.0 - alpha_bar_t + 1e-8)
                     snr_weight = torch.clamp(snr, min=0.1, max=5.0)
 
                     # Final Data Fidelity Loss
-                    loss_data = (snr_weight * loss_p05_per_sample).mean()
+                    loss_data = (snr_weight * loss_l1_per_sample).mean()
                     
                     # Dynamic Total Variation Loss
                     tv_per_sample = total_variation_loss(x_0_pred)
@@ -230,7 +217,6 @@ def train_model(config):
                 
             avg_train_loss = train_loss / len(train_loader)
             
-
             ## VALIDATION ##
             unet.eval()
             val_loss = 0.0
@@ -250,16 +236,13 @@ def train_model(config):
                     with torch.amp.autocast(device.type):
                         x_0_pred = unet(x_t, x_sirt, x_unc, t, acq_config)
                         
-                        # Apply identical L_0.5 + Min-SNR logic for validation
-                        diff = torch.abs(x_0_pred.float() - x_0.float())
-                        eps = 1e-3
-                        loss_p05_per_sample = (torch.sqrt(diff + eps) - (eps ** 0.5)).mean(dim=[1, 2, 3])
+                        loss_l1_per_sample = torch.abs(x_0_pred - x_0).mean(dim=[1, 2, 3])
 
                         alpha_bar_t = diffusion.alphas_cumprod[t]
                         snr = alpha_bar_t / (1.0 - alpha_bar_t + 1e-8)
                         snr_weight = torch.clamp(snr, min=0.1, max=5.0)
 
-                        loss_data = (snr_weight * loss_p05_per_sample).mean()
+                        loss_data = (snr_weight * loss_l1_per_sample).mean()
                         
                         tv_per_sample = total_variation_loss(x_0_pred)
                         loss_tv = (lambda_tv_base * alpha_bar_t * tv_per_sample).mean()
@@ -306,7 +289,6 @@ def train_model(config):
             print(f"--> Current Learning Rate: {current_lr:.6f}")
             
             scheduler.step()
-
 
     except KeyboardInterrupt:
         print("\n\n[Interrupt] Training stopped by user (Ctrl+C).")
