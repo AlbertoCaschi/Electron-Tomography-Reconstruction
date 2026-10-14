@@ -243,8 +243,8 @@ def run_streamlit_inference(
 
 if __name__ == "__main__":
 
-    CHECKPOINT = os.path.join(CONFIG["training"]["output_dir"], "cDDPM.pt")
-    TEST_FILE = r".\assets\2_squares.mrc"
+    CHECKPOINT = os.path.join(CONFIG["training"]["output_dir"], "unet_checkpoint_best.pt")
+    TEST_FILE = r"C:\Users\Alberto\Desktop\Electron-Tomography-Reconstruction\cDDPM\dataset\synthetic_raw\synthetic_sino_0001.mrc"
     ACQUISITION_CONFIG = np.arange(-50, 51, 5) # specific missing wedge and projection setup
     
     run_inference(CHECKPOINT, TEST_FILE, ACQUISITION_CONFIG)
