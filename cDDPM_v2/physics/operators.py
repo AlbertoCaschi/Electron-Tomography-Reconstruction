@@ -218,37 +218,4 @@ class PyTorchTomographyOperator:
         
         # Back-project the filtered sinogram
         return self.back_project(filtered_sinogram, angles_deg)
-
-    def iterative_reconstruction(self, target_sinogram, angles_deg, num_iterations=100, lr=1e-3):
-        """
-        Point 3 Fix: Gradient-based iterative reconstruction (e.g., SIRT/SART behavior).
-        By letting PyTorch's autograd handle the backward pass, we automatically get 
-        the exact mathematical transpose (A^T) of the forward_project function.
-        """
-        B, C, W, num_angles = target_sinogram.shape
-        H = W 
-        
-        # Initialize the blank volume and track gradients to trigger autograd
-        reconstruction = torch.zeros((B, C, H, W), device=self.device, requires_grad=True)
-        optimizer = torch.optim.Adam([reconstruction], lr=lr)
-        
-        for _ in range(num_iterations):
-            optimizer.zero_grad()
-            
-            # Forward project the current guess
-            estimated_sinogram = self.forward_project(reconstruction, angles_deg)
-            
-            # Compare guess to the target
-            loss = F.mse_loss(estimated_sinogram, target_sinogram)
-            
-            # Compute exactly A^T through autograd
-            loss.backward()
-            
-            # Update the reconstruction
-            optimizer.step()
-            
-            # Constrain physics (density cannot be less than 0)
-            with torch.no_grad():
-                reconstruction.clamp_(min=0.0)
-                
-        return reconstruction.detach()
+    

@@ -4,6 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import mrcfile
 from PIL import Image
+from skimage.transform import radon, iradon_sart
 
 from cDDPM_v2.config import CONFIG
 from cDDPM_v2.physics.operators import PyTorchTomographyOperator
@@ -43,7 +44,9 @@ def center_crop(image, target_h, target_w):
 
 def process_and_reconstruct(unet, test_file, acquisition_config, device):
     """Handles the core data pipeline, physics operations, and model sampling."""
-    # Initialize the GPU-native physics operator
+    from skimage.transform import radon, iradon_sart
+    
+    # Initialize the GPU-native physics operator (for fast uncertainty maps and projector guidance)
     physics_operator = PyTorchTomographyOperator(CONFIG["physics"]["detector_pixels"], device)
     diffusion = GaussianDiffusion(CONFIG).to(device)
 
@@ -88,32 +91,22 @@ def process_and_reconstruct(unet, test_file, acquisition_config, device):
     # noise thresholding
     x_0_padded = np.where(x_0_padded < CONFIG["data"]["noise_threshold"], 0.0, x_0_padded)
     
-    # Convert padded GT back to GPU Tensor for forward projection
-    x_0_padded_tensor = torch.from_numpy(x_0_padded).unsqueeze(0).unsqueeze(0).to(device, dtype=torch.float32)
-    
-    # Generate simulated sinogram natively on GPU of shape: (1, 1, W, num_angles)
-    sinogram_compute_tensor = physics_operator.forward_project(x_0_padded_tensor, acquisition_config)
-    
-    # Keep sinogram strictly on GPU for returning later in the plot function
-    sinogram_compute_np = sinogram_compute_tensor.squeeze().cpu().numpy()
+    # Generate simulated sinogram mathematically modeling the microscope on CPU
+    # DEFINE THE NUMPY SINOGRAM
+    sinogram_compute_np = radon(x_0_padded, theta=acquisition_config, circle=True)
 
     iterations = CONFIG["physics"]["SIRT_iterations"]
     
-    # Generate SIRT Conditional Input natively on GPU
-    print(f"Generating SIRT condition {iterations} on GPU...")
-    x_sirt_raw_tensor = physics_operator.iterative_reconstruction(
-        target_sinogram=sinogram_compute_tensor,
-        angles_deg=acquisition_config,
-        num_iterations=iterations,
-        lr=1e-2  # Adjust if the SIRT conditioning looks too faint or too noisy
-    )
-    
-    # Drop back to numpy for center cropping and DDPM normalization
-    x_sirt_np = x_sirt_raw_tensor.squeeze().cpu().numpy()
+    # Generate SIRT Conditional Input using the Numpy Sinogram
+    print(f"Generating SIRT condition {iterations}...")
+    x_sirt_np = None
+    for _ in range(iterations):
+        x_sirt_np = iradon_sart(sinogram_compute_np, theta=acquisition_config, image=x_sirt_np)
+        
     x_sirt_np = center_crop(x_sirt_np, target_h, target_w)
     x_sirt_np = np.ascontiguousarray(x_sirt_np, dtype=np.float32)
 
-    # Convert back to tensor and scale to [-1, 1] for the diffusion model
+    # Convert SIRT back to tensor and scale to [-1, 1] for the diffusion model
     x_sirt_tensor = torch.from_numpy(normalize_to_ddpm_range(x_sirt_np)).unsqueeze(0).unsqueeze(0).to(device, dtype=torch.float32)
     
     # create geometry configuration tensor for inference
@@ -125,10 +118,14 @@ def process_and_reconstruct(unet, test_file, acquisition_config, device):
     # GPU-Native Uncertainty Map Computation
     # ==========================================
     print("Computing Uncertainty Map on GPU...")
+    # DEFINE THE TENSOR SINOGRAM (Shape: [1, 1, W, num_angles])
+    sinogram_compute_tensor = torch.from_numpy(sinogram_compute_np).unsqueeze(0).unsqueeze(0).to(device)
+
     b_maps = []
     for i in range(num_projections):
         angle = torch.tensor([acquisition_config[i]], device=device, dtype=torch.float32)
-        sino_slice = sinogram_compute_tensor[:, :, :, i:i+1] # Slice a single angle
+        # SLICE THE TENSOR SINOGRAM
+        sino_slice = sinogram_compute_tensor[:, :, :, i:i+1] 
         
         # Unfiltered back-projection
         b_i = physics_operator.back_project(sino_slice, angle)

@@ -4,7 +4,7 @@ import csv
 import torch
 import numpy as np
 import mrcfile
-from skimage.transform import iradon_sart
+from skimage.transform import radon, iradon, iradon_sart
 from tqdm import tqdm
 
 from cDDPM_v2.config import CONFIG
@@ -102,28 +102,20 @@ def generate_limited_sirt_dataset(
             angles_deg = np.linspace(-max_tilt, max_tilt, num_proj)
             
             # --- A. Forward Project on GPU ---
-            limited_sinogram_tensor = physics_operator.forward_project(x_0_standardized_tensor, angles_deg)
-        
+            limited_sinogram = radon(x_0_standardized, theta=angles_deg, circle=True)
             
-            # --- B. SIRT (SART) Reconstruction on GPU ---
-            reconstruction_tensor = physics_operator.iterative_reconstruction(
-                target_sinogram=limited_sinogram_tensor, 
-                angles_deg=angles_deg, 
-                num_iterations=iterations,
-                lr=1e-2 
-            )
-
-            # Bring the final reconstructed volume back to numpy for cropping
-            reconstruction = reconstruction_tensor.squeeze().cpu().numpy()
+            # --- B. SIRT (SART) Reconstruction on CPU (skimage) ---
+            reconstruction = None
+            for _ in range(iterations):
+                reconstruction = iradon_sart(limited_sinogram, theta=angles_deg, image=reconstruction)
                 
-            # --- C. Uncertainty Map Generation on GPU ---
+            # --- C. Uncertainty Map Generation on CPU (skimage) ---
             b_maps = []
             for i in range(num_proj):
-                angle = torch.tensor([angles_deg[i]], device=device, dtype=torch.float32)
-                sino_slice = limited_sinogram_tensor[:, :, :, i:i+1]
-                
+                angle = np.array([angles_deg[i]])
+                sino_slice = limited_sinogram[:, i:i+1]
                 # Raw unfiltered back-projection
-                b_i = physics_operator.back_project(sino_slice, angle)
+                b_i = iradon(sino_slice, theta=angle, circle=True, filter_name=None)
                 b_maps.append(b_i)
                 
             # Stack and compute variance entirely on GPU
