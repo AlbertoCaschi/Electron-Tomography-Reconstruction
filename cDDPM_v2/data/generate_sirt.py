@@ -1,12 +1,22 @@
 import os
 import glob
 import csv
+import torch
 import numpy as np
 import mrcfile
-from skimage.transform import radon, iradon, iradon_sart
+from skimage.transform import iradon_sart
 from tqdm import tqdm
 
 from cDDPM_v2.config import CONFIG
+from cDDPM_v2.physics.operators import PyTorchTomographyOperator
+
+def get_device():
+    """Returns the optimal available PyTorch device."""
+    if torch.cuda.is_available():
+        return torch.device("cuda")
+    elif torch.backends.mps.is_available():
+        return torch.device("mps")
+    return torch.device("cpu")
 
 def generate_limited_sirt_dataset(
     input_dir=CONFIG["data"]["dataset_path"], 
@@ -15,6 +25,12 @@ def generate_limited_sirt_dataset(
     iterations=CONFIG["physics"]["SIRT_iterations"]
 ):
     os.makedirs(sirt_output_dir, exist_ok=True)
+    
+    device = get_device()
+    print(f"Generating dataset using device: {device}")
+    
+    # Initialize the new GPU-native physics operator
+    physics_operator = PyTorchTomographyOperator(CONFIG["physics"]["detector_pixels"], device)
     
     raw_start, raw_end, raw_step = CONFIG["physics"]["raw_angles"]
     raw_angles = np.arange(raw_start, raw_end + raw_step, raw_step)
@@ -48,8 +64,14 @@ def generate_limited_sirt_dataset(
         if len(raw_angles) != num_angles:
             raw_angles = np.linspace(raw_start, raw_end, num_angles)
             
-        x_0_np = iradon(raw_sinogram, theta=raw_angles, circle=True, filter_name='ramp')
+        # Convert to Tensor (B, C, W, num_angles) for PyTorch FBP
+        raw_sino_tensor = torch.from_numpy(raw_sinogram).unsqueeze(0).unsqueeze(0).to(device)
         
+        # Ground Truth FBP natively on GPU
+        x_0_tensor = physics_operator.filtered_back_project(raw_sino_tensor, raw_angles)
+        
+        # Drop back to numpy for padding and thresholding
+        x_0_np = x_0_tensor.squeeze().cpu().numpy()
         x_0_np = np.clip(x_0_np, a_min=0.0, a_max=None)
         
         pad_h = max(0, target_h - x_0_np.shape[0])
@@ -68,32 +90,48 @@ def generate_limited_sirt_dataset(
         x_0_normalized = (x_0_padded - x_0_padded.min()) / (x_0_padded.max() - x_0_padded.min() + 1e-8)
         x_0_standardized = np.where(x_0_normalized < threshold, 0.0, x_0_normalized)
         
+        # Convert the clean, thresholded [0, 1] GT back to a GPU Tensor
+        x_0_standardized_tensor = torch.from_numpy(x_0_standardized).unsqueeze(0).unsqueeze(0).to(device, dtype=torch.float32)
+        
         # Generate the limited-angle SIRT reconstructions and Uncertainty Maps
         for cfg_idx, cfg_str in enumerate(cfgs):
             max_tilt, num_proj = map(float, cfg_str.split('_'))
             num_proj = int(num_proj)
             
+            # Using linspace for absolute number of projections
             angles_deg = np.linspace(-max_tilt, max_tilt, num_proj)
             
-            # Forward project from the standardized [0, 1] GT to get the limited sinogram
-            limited_sinogram = radon(x_0_standardized, theta=angles_deg, circle=True)
+            # --- A. Forward Project on GPU ---
+            limited_sinogram_tensor = physics_operator.forward_project(x_0_standardized_tensor, angles_deg)
+        
             
-            # --- A. SIRT (SART) Reconstruction ---
-            reconstruction = None
-            for _ in range(iterations):
-                reconstruction = iradon_sart(limited_sinogram, theta=angles_deg, image=reconstruction)
+            # --- B. SIRT (SART) Reconstruction on GPU ---
+            reconstruction_tensor = physics_operator.iterative_reconstruction(
+                target_sinogram=limited_sinogram_tensor, 
+                angles_deg=angles_deg, 
+                num_iterations=iterations,
+                lr=1e-2 
+            )
+
+            # Bring the final reconstructed volume back to numpy for cropping
+            reconstruction = reconstruction_tensor.squeeze().cpu().numpy()
                 
-            # --- B. Uncertainty Map Generation ---
+            # --- C. Uncertainty Map Generation on GPU ---
             b_maps = []
             for i in range(num_proj):
-                angle = np.array([angles_deg[i]])
-                sino_slice = limited_sinogram[:, i:i+1]
+                angle = torch.tensor([angles_deg[i]], device=device, dtype=torch.float32)
+                sino_slice = limited_sinogram_tensor[:, :, :, i:i+1]
+                
                 # Raw unfiltered back-projection
-                b_i = iradon(sino_slice, theta=angle, circle=True, filter_name=None)
+                b_i = physics_operator.back_project(sino_slice, angle)
                 b_maps.append(b_i)
                 
-            b_maps = np.stack(b_maps, axis=0)
-            variance_map = np.var(b_maps, axis=0)
+            # Stack and compute variance entirely on GPU
+            b_maps_tensor = torch.cat(b_maps, dim=0) # Shape: (num_proj, 1, H, W)
+            variance_map_tensor = torch.var(b_maps_tensor, dim=0, keepdim=True)
+            
+            # Bring variance map to numpy for normalization and cropping
+            variance_map = variance_map_tensor.squeeze().cpu().numpy()
             
             # Dynamically min-max normalize the variance to [0, 1]
             var_min, var_max = variance_map.min(), variance_map.max()
@@ -102,7 +140,7 @@ def generate_limited_sirt_dataset(
             else:
                 u_map = np.zeros_like(variance_map)
                 
-            # --- C. Crop both back to target dimensions ---
+            # --- D. Crop both back to target dimensions ---
             H, W = reconstruction.shape
             if H > target_h or W > target_w:
                 start_y = (H - target_h) // 2

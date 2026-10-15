@@ -94,3 +94,161 @@ class TomographyOperator:
         reconstruction = iradon(sinogram, theta=angles, circle=True, filter_name=None)
         
         return reconstruction
+
+
+import torch
+import torch.nn.functional as F
+
+class PyTorchTomographyOperator:
+    def __init__(self, detector_pixels, device):
+        """
+        Initializes the pure-PyTorch physics operator.
+        """
+        self.detector_pixels = detector_pixels
+        self.device = device
+
+    def _get_rotation_matrices(self, angles_deg, batch_size):
+        """Generates batched affine rotation matrices."""
+        # Convert to radians
+        angles_rad = angles_deg * (np.pi / 180.0)
+        
+        cos_a = torch.cos(angles_rad)
+        sin_a = torch.sin(angles_rad)
+        
+        # Shape: (num_angles, 2, 3)
+        matrices = torch.zeros((len(angles_deg), 2, 3), device=self.device)
+        matrices[:, 0, 0] = cos_a
+        matrices[:, 0, 1] = -sin_a
+        matrices[:, 1, 0] = sin_a
+        matrices[:, 1, 1] = cos_a
+        
+        # Repeat for the batch size: (B * num_angles, 2, 3)
+        matrices = matrices.repeat(batch_size, 1, 1)
+        return matrices
+
+    def forward_project(self, image, angles_deg):
+        """
+        Forward projection (Radon transform) using grid_sample.
+        image: (B, C, H, W) tensor
+        angles_deg: 1D tensor or array of angles
+        """
+        B, C, H, W = image.shape
+        num_angles = len(angles_deg)
+        
+        # Ensure angles are a proper tensor on the correct device
+        angles_deg = torch.as_tensor(angles_deg, device=self.device, dtype=torch.float32)
+
+        # Expand image to process all angles simultaneously: (B * num_angles, C, H, W)
+        image_expanded = image.unsqueeze(1).expand(B, num_angles, C, H, W).reshape(B * num_angles, C, H, W)
+        
+        matrices = self._get_rotation_matrices(angles_deg, B)
+        
+        # Generate grid and rotate
+        grid = F.affine_grid(matrices, image_expanded.size(), align_corners=False)
+        rotated_images = F.grid_sample(image_expanded, grid, mode='bilinear', padding_mode='zeros', align_corners=False)
+        
+        # Sum along the Y-axis to simulate X-ray attenuation
+        sinogram = rotated_images.sum(dim=2) # Shape: (B * num_angles, C, W)
+        
+        # Reshape to (B, C, W, num_angles) -> W is detector_pixels
+        sinogram = sinogram.view(B, num_angles, C, W).permute(0, 2, 3, 1)
+        return sinogram
+
+    def back_project(self, sinogram, angles_deg):
+        """
+        Unfiltered back-projection.
+        sinogram: (B, C, W, num_angles) tensor
+        
+        NOTE: Because grid_sample uses bilinear interpolation, this is an approximation 
+        of the inverse Radon transform, NOT the exact mathematical transpose (A^T). 
+        For exact transposes in iterative solvers, use the iterative_reconstruction method instead.
+        """
+        B, C, W, num_angles = sinogram.shape
+        H = W # Output is WxW
+        
+        angles_deg = torch.as_tensor(angles_deg, device=self.device, dtype=torch.float32)
+
+        # Permute and expand sinogram: smear across the Y-axis
+        smeared = sinogram.permute(0, 3, 1, 2).unsqueeze(3).expand(B, num_angles, C, H, W).reshape(B * num_angles, C, H, W)
+        
+        # For back-projection, we rotate in the opposite direction
+        matrices = self._get_rotation_matrices(-angles_deg, B)
+        
+        grid = F.affine_grid(matrices, smeared.size(), align_corners=False)
+        rotated_back = F.grid_sample(smeared, grid, mode='bilinear', padding_mode='zeros', align_corners=False)
+        
+        # Sum across all angles
+        rotated_back = rotated_back.view(B, num_angles, C, H, W)
+        reconstruction = rotated_back.sum(dim=1)
+        
+        # Point 2 Fix: Calculate the actual angular step size (d_theta) in radians
+        if len(angles_deg) > 1:
+            d_theta = torch.abs(angles_deg[1] - angles_deg[0]) * (torch.pi / 180.0)
+        else:
+            d_theta = torch.pi / num_angles
+            
+        reconstruction = reconstruction * d_theta
+        return reconstruction
+
+    def filtered_back_project(self, sinogram, angles_deg):
+        """
+        Filtered back-projection (FBP) using a Ram-Lak (ramp) filter.
+        """
+        B, C, W, num_angles = sinogram.shape
+        
+        # Point 1 Fix: Pad the detector dimension to avoid circular convolution artifacts
+        pad_len = 2 ** int(np.ceil(np.log2(2 * W)))
+        pad_size = pad_len - W
+        
+        padded_sinogram = F.pad(sinogram, (0, 0, 0, pad_size))
+        
+        # FFT along the padded detector dimension
+        sino_fft = torch.fft.fft(padded_sinogram, dim=2)
+        
+        # Create the Ramp filter in the frequency domain
+        freqs = torch.fft.fftfreq(pad_len, device=self.device)
+        ramp_filter = torch.abs(freqs).view(1, 1, pad_len, 1)
+        
+        # Apply filter and IFFT
+        filtered_sino_fft = sino_fft * ramp_filter
+        filtered_padded = torch.fft.ifft(filtered_sino_fft, dim=2).real
+        
+        # Crop back to the original detector width W
+        filtered_sinogram = filtered_padded[:, :, :W, :]
+        
+        # Back-project the filtered sinogram
+        return self.back_project(filtered_sinogram, angles_deg)
+
+    def iterative_reconstruction(self, target_sinogram, angles_deg, num_iterations=100, lr=1e-3):
+        """
+        Point 3 Fix: Gradient-based iterative reconstruction (e.g., SIRT/SART behavior).
+        By letting PyTorch's autograd handle the backward pass, we automatically get 
+        the exact mathematical transpose (A^T) of the forward_project function.
+        """
+        B, C, W, num_angles = target_sinogram.shape
+        H = W 
+        
+        # Initialize the blank volume and track gradients to trigger autograd
+        reconstruction = torch.zeros((B, C, H, W), device=self.device, requires_grad=True)
+        optimizer = torch.optim.Adam([reconstruction], lr=lr)
+        
+        for _ in range(num_iterations):
+            optimizer.zero_grad()
+            
+            # Forward project the current guess
+            estimated_sinogram = self.forward_project(reconstruction, angles_deg)
+            
+            # Compare guess to the target
+            loss = F.mse_loss(estimated_sinogram, target_sinogram)
+            
+            # Compute exactly A^T through autograd
+            loss.backward()
+            
+            # Update the reconstruction
+            optimizer.step()
+            
+            # Constrain physics (density cannot be less than 0)
+            with torch.no_grad():
+                reconstruction.clamp_(min=0.0)
+                
+        return reconstruction.detach()

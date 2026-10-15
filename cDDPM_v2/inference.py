@@ -4,10 +4,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import mrcfile
 from PIL import Image
-from skimage.transform import iradon_sart
 
 from cDDPM_v2.config import CONFIG
-from cDDPM_v2.physics.operators import TomographyOperator
+from cDDPM_v2.physics.operators import PyTorchTomographyOperator
 from cDDPM_v2.models.unet import ConditionalUNet
 from cDDPM_v2.models.diffusion import GaussianDiffusion
 
@@ -42,57 +41,29 @@ def center_crop(image, target_h, target_w):
         return image[start_y:start_y+target_h, start_x:start_x+target_w]
     return image
 
-def compute_uncertainty_map(true_sinogram, physics_op, angles, target_shape):
-    """
-    Computes a pixel-wise uncertainty map based on the variance of individual unfiltered back-projections.
-    """
-    num_tilts = len(angles)
-    b_maps = []
-    target_h, target_w = target_shape
-    
-    # Back-project each tilt individually
-    for i in range(num_tilts):
-        angle = np.array([angles[i]])
-        sino_slice = true_sinogram[:, i:i+1]
-        
-        # Raw unfiltered back-projection
-        b_i = physics_op.back_project(sino_slice, angle)
-        b_i = center_crop(b_i, target_h, target_w)
-        b_maps.append(b_i)
-        
-    b_maps = np.stack(b_maps, axis=0) # Shape: [T, H, W]
-    variance_map = np.var(b_maps, axis=0)
-    
-    # Dynamically min-max normalize the variance to [0, 1]
-    var_min, var_max = variance_map.min(), variance_map.max()
-    if var_max - var_min > 1e-8:
-        u_map = (variance_map - var_min) / (var_max - var_min)
-    else:
-        u_map = np.zeros_like(variance_map)
-        
-    # Shift to DDPM scale [-1, 1]
-    u_map = (u_map * 2.0) - 1.0
-    
-    return torch.from_numpy(u_map).float()
-
-
 def process_and_reconstruct(unet, test_file, acquisition_config, device):
     """Handles the core data pipeline, physics operations, and model sampling."""
-    physics_operator = TomographyOperator(CONFIG["physics"])
+    # Initialize the GPU-native physics operator
+    physics_operator = PyTorchTomographyOperator(CONFIG["physics"]["detector_pixels"], device)
     diffusion = GaussianDiffusion(CONFIG).to(device)
 
     # full angles for ground truth reconstruction
     raw_start, raw_end, raw_step = CONFIG["physics"]["raw_angles"]
     full_angles = np.arange(raw_start, raw_end + raw_step, raw_step)
     
-    # raw sinogram -> ground truth -> simulated artifacts
+    # load raw sinogram
     with mrcfile.open(test_file, permissive=True) as mrc:
         raw_sinogram = np.squeeze(mrc.data).astype(np.float32).copy()
 
     if raw_sinogram.shape[0] == len(full_angles):
         raw_sinogram = raw_sinogram.T
 
-    x_0_np = physics_operator.filtered_back_project(raw_sinogram, full_angles)
+    # Convert to Tensor (B, C, W, num_angles) for PyTorch FBP
+    raw_sino_tensor = torch.from_numpy(raw_sinogram).unsqueeze(0).unsqueeze(0).to(device)
+    
+    # Ground Truth FBP on GPU
+    x_0_tensor = physics_operator.filtered_back_project(raw_sino_tensor, full_angles)
+    x_0_np = x_0_tensor.squeeze().cpu().numpy()
     x_0_np = np.clip(x_0_np, a_min=0.0, a_max=None)
     
     target_h, target_w = CONFIG["data"]["image_dims"]
@@ -117,20 +88,32 @@ def process_and_reconstruct(unet, test_file, acquisition_config, device):
     # noise thresholding
     x_0_padded = np.where(x_0_padded < CONFIG["data"]["noise_threshold"], 0.0, x_0_padded)
     
-    # Generate simulated sinogram (this mathematically models the microscope!)
-    sinogram_compute = physics_operator.forward_project(x_0_padded, acquisition_config)
+    # Convert padded GT back to GPU Tensor for forward projection
+    x_0_padded_tensor = torch.from_numpy(x_0_padded).unsqueeze(0).unsqueeze(0).to(device, dtype=torch.float32)
+    
+    # Generate simulated sinogram natively on GPU of shape: (1, 1, W, num_angles)
+    sinogram_compute_tensor = physics_operator.forward_project(x_0_padded_tensor, acquisition_config)
+    
+    # Keep sinogram strictly on GPU for returning later in the plot function
+    sinogram_compute_np = sinogram_compute_tensor.squeeze().cpu().numpy()
 
     iterations = CONFIG["physics"]["SIRT_iterations"]
     
-    # Generate SIRT Conditional Input
-    print(f"Generating SIRT condition {iterations}...")
-    x_sirt_np = None
-    for _ in range(iterations):
-        x_sirt_np = iradon_sart(sinogram_compute, theta=acquisition_config, image=x_sirt_np)
+    # Generate SIRT Conditional Input natively on GPU
+    print(f"Generating SIRT condition {iterations} on GPU...")
+    x_sirt_raw_tensor = physics_operator.iterative_reconstruction(
+        target_sinogram=sinogram_compute_tensor,
+        angles_deg=acquisition_config,
+        num_iterations=iterations,
+        lr=1e-2  # Adjust if the SIRT conditioning looks too faint or too noisy
+    )
     
+    # Drop back to numpy for center cropping and DDPM normalization
+    x_sirt_np = x_sirt_raw_tensor.squeeze().cpu().numpy()
     x_sirt_np = center_crop(x_sirt_np, target_h, target_w)
     x_sirt_np = np.ascontiguousarray(x_sirt_np, dtype=np.float32)
 
+    # Convert back to tensor and scale to [-1, 1] for the diffusion model
     x_sirt_tensor = torch.from_numpy(normalize_to_ddpm_range(x_sirt_np)).unsqueeze(0).unsqueeze(0).to(device, dtype=torch.float32)
     
     # create geometry configuration tensor for inference
@@ -138,22 +121,49 @@ def process_and_reconstruct(unet, test_file, acquisition_config, device):
     num_projections = len(acquisition_config)
     acq_config_tensor = torch.tensor([current_max_tilt, num_projections], dtype=torch.float32).unsqueeze(0).to(device)
 
-    # projector guidance
-    use_projector = CONFIG["inference"]["use_projector_guidance"]
-    uncertainty_tensor = None
-
+    # ==========================================
+    # GPU-Native Uncertainty Map Computation
+    # ==========================================
+    print("Computing Uncertainty Map on GPU...")
+    b_maps = []
+    for i in range(num_projections):
+        angle = torch.tensor([acquisition_config[i]], device=device, dtype=torch.float32)
+        sino_slice = sinogram_compute_tensor[:, :, :, i:i+1] # Slice a single angle
+        
+        # Unfiltered back-projection
+        b_i = physics_operator.back_project(sino_slice, angle)
+        
+        # Center crop the tensor
+        H, W = b_i.shape[2], b_i.shape[3]
+        if H > target_h or W > target_w:
+            start_y, start_x = (H - target_h) // 2, (W - target_w) // 2
+            b_i = b_i[:, :, start_y:start_y+target_h, start_x:start_x+target_w]
+        b_maps.append(b_i)
+        
+    # Stack across a new dimension and calculate variance across all projections
+    b_maps_tensor = torch.cat(b_maps, dim=0) # Shape: (num_projections, 1, H, W)
+    variance_map = torch.var(b_maps_tensor, dim=0, keepdim=True) # Shape: (1, 1, H, W)
     
-    u_map = compute_uncertainty_map(sinogram_compute, physics_operator, acquisition_config, (target_h, target_w))
-    # Match the U-Net tensor dimensions [1, 1, H, W]
-    uncertainty_tensor = u_map.unsqueeze(0).unsqueeze(0).to(device)
+    # Min-Max normalize variance to [0, 1]
+    var_min, var_max = variance_map.min(), variance_map.max()
+    if var_max - var_min > 1e-8:
+        u_map = (variance_map - var_min) / (var_max - var_min)
+    else:
+        u_map = torch.zeros_like(variance_map)
+        
+    # Shift to DDPM scale [-1, 1]
+    uncertainty_tensor = (u_map * 2.0) - 1.0 
+    # ==========================================
 
+    use_projector = CONFIG["inference"]["use_projector_guidance"]
+    
     print("Starting diffusion generation (may take a minute)...")
     with torch.no_grad():
         x_reconstructed_tensor = diffusion.p_sample_loop(
             unet, 
             x_sirt_tensor,
             acq_config_tensor,
-            true_sinogram=sinogram_compute if use_projector else None,
+            true_sinogram=sinogram_compute_tensor if use_projector else None,
             physics_op=physics_operator if use_projector else None,
             angles=acquisition_config if use_projector else None,
             uncertainty_map=uncertainty_tensor
@@ -163,7 +173,7 @@ def process_and_reconstruct(unet, test_file, acquisition_config, device):
     x_sirt_vis = unnormalize_from_ddpm_range(x_sirt_tensor).squeeze().cpu().numpy()
     x_recon_vis = unnormalize_from_ddpm_range(x_reconstructed_tensor).squeeze().cpu().numpy()
 
-    return x_0_padded, sinogram_compute, x_sirt_vis, x_recon_vis
+    return x_0_padded, sinogram_compute_np, x_sirt_vis, x_recon_vis
 
 def plot_results(x_0_padded, sinogram, x_sirt_vis, x_recon_vis, max_angle, save_path=None):
     """Plots and optionally saves the 4-panel comparison figure."""

@@ -7,7 +7,7 @@ import torch
 from torch.utils.data import Dataset
 import mrcfile
 
-from cDDPM_v2.physics.operators import TomographyOperator
+from cDDPM_v2.physics.operators import PyTorchTomographyOperator
 from cDDPM_v2.config import CONFIG
 
 
@@ -56,7 +56,7 @@ class TomographyDataset(Dataset):
         if len(self.file_paths) == 0:
             raise ValueError(f"No files available for mode '{self.mode}'. Check your dataset folder and split counts.")
 
-        self.physics_operator = TomographyOperator(config["physics"])
+        self.physics_operator = PyTorchTomographyOperator(config["physics"]["detector_pixels"], device=torch.device("cpu"))
         raw_start, raw_end, raw_step = config["physics"]["raw_angles"]
         self.full_angles = np.arange(raw_start, raw_end + raw_step, raw_step)
 
@@ -119,7 +119,9 @@ class TomographyDataset(Dataset):
         else:
             current_angles = self.full_angles
             
-        x_0_np = self.physics_operator.filtered_back_project(raw_sinogram, current_angles)
+        raw_sino_tensor = torch.from_numpy(raw_sinogram).unsqueeze(0).unsqueeze(0)
+        x_0_tensor = self.physics_operator.filtered_back_project(raw_sino_tensor, current_angles)
+        x_0_np = x_0_tensor.squeeze().numpy()
 
         x_0_np = np.clip(x_0_np, a_min=0.0, a_max=None)
             

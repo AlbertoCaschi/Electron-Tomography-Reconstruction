@@ -9,41 +9,41 @@ from cDDPM_v2.config import CONFIG
 def apply_projector_guidance(x_0_pred, true_sinogram, physics_op, angles, lambda_step=0.1):
     """
     Enforces measurement consistency strictly on the measured angles Theta_measured
+    using fully batched, GPU-native PyTorch operations.
     """
-    device = x_0_pred.device
     target_h, target_w = x_0_pred.shape[2], x_0_pred.shape[3]
     
-    # Bring prediction to [0, 1] range in NumPy
-    x_0_np = ((x_0_pred.squeeze() + 1.0) / 2.0).cpu().numpy()
+    # Bring prediction to [0, 1] range natively on GPU
+    x_0_tensor = (x_0_pred + 1.0) / 2.0
 
-    # Forward project only on the measured angles Theta_measured
-    sim_sinogram = physics_op.forward_project(x_0_np, angles)
+    # Forward project only on the measured angles (GPU native)
+    sim_sinogram = physics_op.forward_project(x_0_tensor, angles)
 
     # Residual error in Radon space: y_measured - A(x_0)
     error_sinogram = true_sinogram - sim_sinogram
     
-    # Transpose operation: A^T(error)
+    # Transpose operation: A^T(error) (GPU native)
     error_img_padded = physics_op.back_project(error_sinogram, angles)
     
-    # Crop back to target dimensions
-    H, W = error_img_padded.shape
+    # Crop back to target dimensions across the batch
+    B, C, H, W = error_img_padded.shape
     if H > target_h or W > target_w:
         start_y = (H - target_h) // 2
         start_x = (W - target_w) // 2
-        error_img = error_img_padded[start_y:start_y+target_h, start_x:start_x+target_w]
+        error_img = error_img_padded[:, :, start_y:start_y+target_h, start_x:start_x+target_w]
     else:
         error_img = error_img_padded
 
     # Normalize the backprojection gradient by the number of measured angles
-    # to maintain stable step sizes regardless of whether projections are 8 or 20
+    # to maintain stable step sizes
     error_img = error_img / len(angles)
 
     # Gradient update on measured angles: x_0 <- x_0 + lambda * A^T(y - A x_0)
-    x_0_projected_np = x_0_np + (lambda_step * error_img)
-    x_0_projected_np = np.clip(x_0_projected_np, 0.0, 1.0)
+    x_0_projected = x_0_tensor + (lambda_step * error_img)
+    x_0_projected = torch.clamp(x_0_projected, 0.0, 1.0)
     
-    # Convert back to [-1, 1] tensor for diffusion
-    x_0_updated = (torch.from_numpy(x_0_projected_np).unsqueeze(0).unsqueeze(0).to(device) * 2.0) - 1.0
+    # Convert back to [-1, 1] scale for DDPM
+    x_0_updated = (x_0_projected * 2.0) - 1.0
     
     return x_0_updated.to(dtype=torch.float32)
 
